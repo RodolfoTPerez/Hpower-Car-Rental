@@ -72,6 +72,30 @@ const login = async (req, res) => {
   }
 }
 
+const refresh = async (req, res) => {
+  try {
+    const { refreshToken } = req.body
+    if (!refreshToken)
+      return error(res, 'Refresh token requerido', 400)
+
+    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET)
+
+    const { data: user } = await supabase
+      .from('users')
+      .select('id, name, email, role, is_active')
+      .eq('id', decoded.id)
+      .single()
+
+    if (!user || !user.is_active)
+      return error(res, 'Usuario no encontrado o inactivo', 401)
+
+    const tokens = generateTokens(user)
+    return success(res, { tokens }, 'Token renovado correctamente')
+  } catch (err) {
+    return error(res, 'Refresh token inválido o expirado', 401)
+  }
+}
+
 const logout = async (req, res) => {
   return success(res, null, 'Sesión cerrada correctamente')
 }
@@ -91,4 +115,4 @@ const me = async (req, res) => {
   }
 }
 
-module.exports = { register, login, logout, me }
+module.exports = { register, login, logout, me, refresh }
