@@ -55,6 +55,12 @@ const Navbar = () => {
         <Link to="/fleet" style={{ color: 'var(--text-primary)', textDecoration: 'none', fontSize: '14px' }}>
           {t('nav.fleet')}
         </Link>
+        <Link to="/about" style={{ color: 'var(--text-primary)', textDecoration: 'none', fontSize: '14px' }}>
+          {t('nav.about')}
+        </Link>
+        <Link to="/contact" style={{ color: 'var(--text-primary)', textDecoration: 'none', fontSize: '14px' }}>
+          {t('nav.contact')}
+        </Link>
 
         {user && (
           <Link to="/account" style={{ color: 'var(--text-primary)', textDecoration: 'none', fontSize: '14px' }}>
@@ -113,10 +119,10 @@ const Navbar = () => {
             fontSize: '13px'
           }}
         >
-          <option value="midnight">🌙 Midnight</option>
-          <option value="ocean">🌊 Ocean</option>
-          <option value="pearl">☀️ Pearl</option>
-          <option value="sunset">🌅 Sunset</option>
+          <option value="midnight">🌙 {t('themes.midnight')}</option>
+          <option value="ocean">🌊 {t('themes.ocean')}</option>
+          <option value="pearl">☀️ {t('themes.pearl')}</option>
+          <option value="sunset">🌅 {t('themes.sunset')}</option>
         </select>
       </div>
     </nav>
