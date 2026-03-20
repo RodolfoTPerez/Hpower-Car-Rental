@@ -79,7 +79,16 @@ const create = async (req, res) => {
     } = req.body
 
     if (!category_id || !brand || !model || !year || !license_plate || !base_price_per_day)
-      return error(res, 'Faltan campos requeridos', 400)
+      return error(res, 'Faltan campos requeridos: categoría, marca, modelo, año, placa y tarifa diaria', 400)
+
+    // Verificar si la placa ya existe
+    const { data: existing } = await supabase
+      .from('vehicles')
+      .select('id')
+      .eq('license_plate', license_plate)
+      .single()
+
+    if (existing) return error(res, `Ya existe un vehículo con la placa ${license_plate}`, 400)
 
     const { data, error: err } = await supabase
       .from('vehicles')
