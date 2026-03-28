@@ -1,0 +1,525 @@
+require('dotenv').config()
+const express = require('express')
+const cors = require('cors')
+const { createClient } = require('@supabase/supabase-js')
+const bcrypt = require('bcryptjs')
+const jwt = require('jsonwebtoken')
+const { body, validationResult } = require('express-validator')
+
+const app = express()
+const PORT = process.env.PORT || 3000
+
+/* ── Supabase client ── */
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SECRET_KEY
+)
+
+/* ── HQ Rentals config ── */
+const HQ_API_URL           = process.env.HQ_API_URL
+const HQ_API_LOCATIONS_URL = process.env.HQ_API_LOCATIONS_URL
+const HQ_API_CLASSES_URL   = process.env.HQ_API_CLASSES_URL
+const HQ_API_RATES_URL     = process.env.HQ_API_RATES_URL
+const HQ_API_SEASONS_URL   = process.env.HQ_API_SEASONS_URL 
+
+
+const HQ_HEADERS = {
+  'Authorization': process.env.HQ_API_TOKEN,
+  'Content-Type':  'application/json'
+}
+
+/* ── Middleware ── */
+app.use(cors())
+app.use(express.json())
+
+const router = express.Router()
+
+/* ══════════════════════════════════════════
+   HELPERS / MAPPERS (Originales y Completos)
+══════════════════════════════════════════ */
+const mapStatus = (hqStatus) => {
+  const map = {
+    'available':      'AVAILABLE',
+    'rental':         'RENTED',
+    'rented':         'RENTED',
+    'maintenance':    'MAINTENANCE',
+    'unavailable':    'UNAVAILABLE',
+    'out_of_service': 'UNAVAILABLE',
+  }
+  return map[hqStatus?.toLowerCase()] || 'UNAVAILABLE'
+}
+
+const mapTransmission = (hqValue) => {
+  const val = hqValue?.toLowerCase() || ''
+  if (val.includes('manual')) return 'MANUAL'
+  return 'AUTO'
+}
+
+const mapFuelType = (hqValue) => {
+  const val = hqValue?.toLowerCase() || ''
+  if (val.includes('diesel'))   return 'DIESEL'
+  if (val.includes('electric')) return 'ELECTRIC'
+  if (val.includes('hybrid'))   return 'HYBRID'
+  return 'GAS'
+}
+
+const parseBrandModel = (label) => {
+  const parts = label?.split(' - ')[0]?.split(' ') || []
+  const brand = parts[0] || 'Unknown'
+  const model = parts.slice(1).join(' ') || 'Unknown'
+  return { brand, model }
+}
+
+/* ══════════════════════════════════════════
+   SYNC LOGIC (Funciones de Sincronización)
+══════════════════════════════════════════ */
+
+const syncLocations = async (hqLocations) => {
+  console.log(`\n--- [LOCATIONS] Iniciando guardado de ${hqLocations.length} registros ---`);
+  const results = { inserted: 0, updated: 0, skipped: 0, errors: [] }
+  for (const loc of hqLocations) {
+    if (!loc.active) { results.skipped++; continue }
+    const locationData = {
+      id:              loc.id,
+      name:            loc.label_for_website_translated || loc.label_for_website?.en || loc.name,
+      city:            loc.city    || null,
+      state:           loc.state   || null,
+      address:         loc.address || null,
+      phone:           loc.phone_number || null,
+      active:          loc.active,
+      pick_up_allowed: loc.pick_up_allowed ?? true,
+      return_allowed:  loc.return_allowed  ?? true,
+    }
+    const { error } = await supabase.from('locations').upsert([locationData], { onConflict: 'id' })
+    if (error) {
+      console.log(`❌ Error Location ID ${loc.id}: ${error.message}`);
+      results.errors.push({ id: loc.id, error: error.message });
+    } else {
+      console.log(`✅ Location guardada: ${locationData.name}`);
+      results.inserted++;
+    }
+  }
+  return results
+}
+
+const syncCategories = async (hqClasses) => {
+  console.log(`\n--- [CATEGORIES] Iniciando guardado de ${hqClasses.length} clases ---`);
+  const results = { inserted: 0, updated: 0, skipped: 0, errors: [] }
+  const groupedByName = {}
+  for (const cls of hqClasses) {
+    if (!cls.active) { results.skipped++; continue }
+    const name = cls.label_for_website?.en?.trim() || cls.name
+    if (!groupedByName[name]) {
+      groupedByName[name] = {
+        name,
+        description:  cls.name,
+        icon:          cls.public_image_link || null,
+        is_active:     cls.active && cls.available_on_website,
+        hq_class_ids: []
+      }
+    }
+    groupedByName[name].hq_class_ids.push(cls.id)
+  }
+
+  for (const [name, catData] of Object.entries(groupedByName)) {
+    const { data: existing } = await supabase.from('vehicle_categories').select('id').eq('name', name).maybeSingle()
+    if (existing) {
+      const { error } = await supabase.from('vehicle_categories').update({
+        description: catData.description,
+        icon: catData.icon,
+        is_active: catData.is_active,
+        hq_class_ids: catData.hq_class_ids,
+      }).eq('id', existing.id)
+      if (error) {
+        console.log(`❌ Error Categoría ${name}: ${error.message}`);
+        results.errors.push({ name, error: error.message });
+      } else {
+        console.log(`✅ Categoría actualizada: ${name}`);
+        results.updated++;
+      }
+    } else {
+      const { error } = await supabase.from('vehicle_categories').insert([catData])
+      if (error) {
+        console.log(`❌ Error Categoría ${name}: ${error.message}`);
+        results.errors.push({ name, error: error.message });
+      } else {
+        console.log(`✅ Categoría insertada: ${name}`);
+        results.inserted++;
+      }
+    }
+  }
+  return results
+}
+
+const syncVehicles = async (hqVehicles) => {
+  console.log(`\n--- [VEHICLES] Iniciando guardado de ${hqVehicles.length} vehículos ---`);
+  const results = { inserted: 0, updated: 0, errors: [] };
+  const { data: supabaseCategories } = await supabase.from('vehicle_categories').select('id, hq_class_ids');
+  
+  const categoryByHqId = {};
+  for (const cat of supabaseCategories || []) {
+    for (const hqId of (cat.hq_class_ids || [])) {
+      categoryByHqId[hqId] = cat.id;
+    }
+  }
+
+  const SUPABASE_STORAGE_URL = `${process.env.SUPABASE_URL}/storage/v1/object/public/cars`;
+
+  for (const hqV of hqVehicles) {
+    try {
+      const { brand, model } = parseBrandModel(hqV.label);
+      const categoryId = categoryByHqId[hqV.vehicle_class_id];
+      if (!categoryId) {
+        console.log(`⚠️ Saltando auto ${hqV.plate}: No se encontró categoría Supabase para Class ID ${hqV.vehicle_class_id}`);
+        continue;
+      }
+
+      const imageName = model.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''); 
+      const customImage = `${SUPABASE_STORAGE_URL}/${imageName}.jpg`;
+
+      const vehicleData = {
+        category_id: categoryId,
+        brand, 
+        model,
+        year: hqV.year || new Date().getFullYear(),
+        license_plate: hqV.plate || hqV.vehicle_key,
+        color: hqV.color || null,
+        seats: hqV.seats || 5,
+        transmission: mapTransmission(hqV.transmission),
+        fuel_type: mapFuelType(hqV.fuel_type),
+        mileage: hqV.odometer || 0,
+        features: hqV.features || [],
+        images: hqV.images || [],
+        main_image: customImage, 
+        status: mapStatus(hqV.status),
+        base_price_per_day: hqV.daily_rate || hqV.base_price || 0,
+        location_id: hqV.current_location_id || null,
+      };
+
+      const { error } = await supabase.from('vehicles').upsert([vehicleData], { onConflict: 'license_plate' });
+      if (error) {
+        console.log(`❌ Error Auto ${hqV.plate}: ${error.message}`);
+        results.errors.push({ plate: hqV.plate, error: error.message });
+      } else {
+        console.log(`✅ Auto guardado: ${brand} ${model} (${hqV.plate || 'S/P'})`);
+        results.inserted++;
+      }
+    } catch (err) {
+      results.errors.push({ plate: hqV.plate, error: err.message });
+    }
+  }
+  return results;
+};
+
+const syncVehicleRates = async (hqRates) => {
+  console.log(`\n--- [RATES] Iniciando guardado de ${hqRates.length} tarifas ---`);
+  
+  const { data: categories } = await supabase.from('vehicle_categories').select('id, hq_class_ids');
+  const catMap = {};
+  categories?.forEach(c => c.hq_class_ids?.forEach(id => catMap[id] = c.id));
+
+  const results = { inserted: 0, skipped: 0, errors: [] };
+
+  for (const rate of hqRates) {
+    const uuid = catMap[rate.vehicle_class_id];
+    
+    // 1. Validar que la categoría exista en nuestro sistema
+    if (!uuid) { 
+      results.skipped++; 
+      continue; 
+    }
+
+    const dailyPrice = parseFloat(rate.daily_rate) || 0;
+    const rawStart = rate.season?.date_start;
+    const rawEnd = rate.season?.date_end;
+
+    // 2. FILTRO DE SEGURIDAD: No permitir tarifas de $0 o negativas
+    if (dailyPrice <= 0) {
+      console.log(`⚠️ ALERTA: Tarifa de $0 saltada para Categoría HQ ID ${rate.vehicle_class_id}. No se guardará.`);
+      results.skipped++;
+      continue;
+    }
+
+    if (!rawStart || !rawEnd) {
+      console.log(`⚠️ Tarifa ID ${rate.id} saltada: Faltan fechas de temporada.`);
+      results.skipped++;
+      continue;
+    }
+
+    // 3. Guardado sin restricción de año (trae todo lo vigente)
+    const { error } = await supabase.from('vehicle_rates').upsert({
+        vehicle_class_id: uuid,
+        season_id: rate.season_id,
+        daily_rate: dailyPrice,
+        weekly_rate: parseFloat(rate.weekly_rate) || 0,
+        monthly_rate: parseFloat(rate.monthly_rate) || 0,
+        start_date: rawStart.split('T')[0], 
+        end_date: rawEnd.split('T')[0]
+      }, { onConflict: 'vehicle_class_id, season_id' });
+
+    if (error) {
+      console.log(`❌ Error Tarifa ${rate.id}: ${error.message}`);
+      results.errors.push(`ID ${rate.id}: ${error.message}`);
+    } else {
+      console.log(`✅ Tarifa guardada: $${dailyPrice} (ID Temporada: ${rate.season_id})`);
+      results.inserted++;
+    }
+  }
+  
+  console.log(`\n--- [RESUMEN RATES] Insertados: ${results.inserted} | Saltados/Errores: ${results.skipped + results.errors.length} ---`);
+  return results;
+};
+
+/* ══════════════════════════════════════════
+   SYNC ENDPOINTS
+══════════════════════════════════════════ */
+
+app.get('/api/sync/all', async (req, res) => {
+  try {
+    console.log("\n🚀 INICIANDO SINCRONIZACIÓN TOTAL");
+    const locRes = await fetch(HQ_API_LOCATIONS_URL, { headers: HQ_HEADERS }).then(r => r.json());
+    const resL = await syncLocations(locRes.fleets_locations || []);
+
+    const clsRes = await fetch(HQ_API_CLASSES_URL, { headers: HQ_HEADERS }).then(r => r.json());
+    const resC = await syncCategories(clsRes.fleets_vehicle_classes || []);
+
+    const vehRes = await fetch(HQ_API_URL, { headers: HQ_HEADERS }).then(r => r.json());
+    const resV = await syncVehicles(vehRes.data || []);
+
+    const ratesRes = await fetch(HQ_API_RATES_URL, { headers: HQ_HEADERS }).then(r => r.json());
+    const ratesData = Array.isArray(ratesRes) ? ratesRes : (ratesRes.data || []);
+    const resR = await syncVehicleRates(ratesData);
+
+        // 4. SEASONS & RATES (Dependen de todo lo anterior)
+    const seasonsRes = await fetch(HQ_API_SEASONS_URL, { headers: HQ_HEADERS }).then(r => r.json());
+    const seasonsData = Array.isArray(seasonsRes) ? seasonsRes : (seasonsRes.data || []);
+    const resS = await syncSeasons(seasonsData);
+    console.log(`✅ Temporadas y Tarifas sincronizadas: ${resS.inserted}`);
+
+
+    // Respuesta final consolidada
+    res.json({ 
+      success: true, 
+      summary: {
+        locations: resL, 
+        categories: resC, 
+        vehicles: resV, 
+        seasons_and_rates: resS 
+      }
+    });
+
+  } catch (err) {
+    console.error("❌ ERROR CRÍTICO EN SYNC ALL:", err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/sync/locations', async (req, res) => {
+  try {
+    console.log("\n--- CONSULTANDO HQ RENTALS (LOCATIONS) ---");
+    const r = await fetch(HQ_API_LOCATIONS_URL, { headers: HQ_HEADERS }).then(res => res.json());
+    const results = await syncLocations(r.fleets_locations || []);
+    res.json({ success: true, ...results });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/sync/categories', async (req, res) => {
+  try {
+    console.log("\n--- CONSULTANDO HQ RENTALS (CATEGORIES) ---");
+    const r = await fetch(HQ_API_CLASSES_URL, { headers: HQ_HEADERS }).then(res => res.json());
+    const results = await syncCategories(r.fleets_vehicle_classes || []);
+    res.json({ success: true, ...results });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/sync/vehicles', async (req, res) => {
+  try {
+    console.log("\n--- CONSULTANDO HQ RENTALS (VEHICLES) ---");
+    const r = await fetch(HQ_API_URL, { headers: HQ_HEADERS }).then(res => res.json());
+    const results = await syncVehicles(r.data || []);
+    res.json({ success: true, ...results });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/sync/rates', async (req, res) => {
+  try {
+    console.log("\n--- CONSULTANDO HQ RENTALS (RATES) ---");
+    const r = await fetch(HQ_API_RATES_URL, { headers: HQ_HEADERS }).then(res => res.json());
+    const rates = Array.isArray(r) ? r : (r.data || []);
+    const results = await syncVehicleRates(rates);
+    res.json({ success: true, count: rates.length, ...results });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+
+  // ENDPOINT ACTUALIZADO PARA SEASONS
+app.get('/api/sync/seasons', async (req, res) => {
+  try {
+    console.log("--- Sincronizando Seasons (Solo 2025 en adelante) ---");
+    
+    const response = await fetch(HQ_API_SEASONS_URL, { headers: HQ_HEADERS });
+    const json = await response.json();
+    
+    const items = Array.isArray(json) ? json : (json.data || []);
+
+    if (items.length === 0) {
+      return res.json({ success: false, message: "No se recibieron datos de HQ" });
+    }
+
+    // FILTRADO Y PROCESAMIENTO
+    const seasonsToInsert = items
+      .filter(s => {
+        // Solo procesamos si tiene fecha de inicio y el año es >= 2025
+        if (!s.date_start) return false;
+        const year = new Date(s.date_start).getUTCFullYear();
+        return year >= 2025;
+      })
+      .map((s, index) => {
+        // Extracción limpia de solo fecha (YYYY-MM-DD)
+        const d_start = s.date_start ? s.date_start.substring(0, 10) : null;
+        const d_end = s.date_end ? s.date_end.substring(0, 10) : null;
+
+        console.log(`[${index}] Filtrado: ${s.name} | Año: ${d_start.split('-')[0]}`);
+
+        return {
+          id: s.id,
+          brand_id: s.brand_id,
+          name: s.name,
+          date_start: d_start,
+          date_end: d_end,
+          created_at: new Date()
+        };
+      });
+
+    if (seasonsToInsert.length === 0) {
+      return res.json({ success: true, message: "No hay temporadas del 2025 o posteriores para sincronizar." });
+    }
+
+    // 2. Guardar en Supabase
+    const { error } = await supabase
+      .from('seasons')
+      .upsert(seasonsToInsert, { onConflict: 'id' });
+
+    if (error) throw error;
+
+    res.json({ 
+      success: true, 
+      total_sincronizados: seasonsToInsert.length,
+      rango: "2025 - Presente",
+      primer_registro: seasonsToInsert[0] 
+    });
+
+  } catch (e) {
+    console.error("Error en Sync:", e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+
+
+
+});
+
+/* ══════════════════════════════════════════
+   API V1 ENDPOINTS (Frontend)
+══════════════════════════════════════════ */
+app.use('/api/v1', router);
+
+router.get('/locations', async (req, res) => {
+  try {
+    const { data, error } = await supabase.from('locations').select('*').eq('active', true);
+    if (error) throw error;
+    res.json({ success: true, data: data || [] });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.get('/categories', async (req, res) => {
+  try {
+    const { location_id } = req.query;
+    let query = supabase.from('vehicle_categories').select('*').eq('is_active', true);
+    
+    if (location_id && location_id !== 'undefined') {
+       const { data: catIds } = await supabase.from('vehicles')
+        .select('category_id')
+        .eq('location_id', location_id);
+       const ids = [...new Set(catIds?.map(v => v.category_id))];
+       query = query.in('id', ids);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+    res.json({ success: true, data: data || [] });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.get('/vehicles', async (req, res) => {
+  try {
+    const { category_id, location_id } = req.query;
+    
+    // 1. Iniciamos la consulta
+    let query = supabase.from('vehicles').select(`
+        *,
+        locations (*), 
+        vehicle_categories (*, vehicle_rates (*))
+      `).eq('status', 'AVAILABLE');
+
+    if (location_id && location_id !== 'undefined') query = query.eq('location_id', parseInt(location_id));
+    if (category_id && category_id !== 'undefined') query = query.eq('category_id', category_id);
+
+    const { data, error } = await query.order('brand', { ascending: true });
+    if (error) throw error;
+
+    // 2. LÓGICA DE AGRUPACIÓN (ESTÉTICA)
+    // Usamos un Map para quedarnos solo con el primero de cada modelo/clase
+    const uniqueVehiclesMap = new Map();
+
+    data.forEach(v => {
+      // Creamos una llave única basada en Marca + Modelo
+      // Si quieres que sea aún más estricto, usa v.category_id + v.model
+      const key = `${v.brand}-${v.model}`.toLowerCase();
+      
+      if (!uniqueVehiclesMap.has(key)) {
+        uniqueVehiclesMap.set(key, {
+          ...v,
+          current_rate: v.vehicle_categories?.vehicle_rates?.[0] || { daily_rate: v.base_price_per_day },
+          category_name: v.vehicle_categories?.name,
+          location_name: v.locations?.name,
+          total_units_available: 1 // Opcional: para saber cuántos hay de este modelo
+        });
+      } else {
+        // Si ya existe, podemos contar cuántas unidades hay de este modelo
+        const existing = uniqueVehiclesMap.get(key);
+        existing.total_units_available += 1;
+      }
+    });
+
+    // Convertimos el Map de vuelta a un Array
+    const formatted = Array.from(uniqueVehiclesMap.values());
+
+    console.log(`\n📊 Estética: De ${data.length} vehículos totales, se muestran ${formatted.length} modelos únicos.`);
+
+    res.json({ 
+      success: true, 
+      total_total: data.length, // Todos los autos en stock
+      total_display: formatted.length, // Los que se ven en la web
+      data: formatted 
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/health', (req, res) => res.send('OK'));
+
+app.listen(PORT, () => {
+  console.log(`\n🚀 Server corriendo en puerto ${PORT}`)
+  console.log(`📡 Supabase: ${process.env.SUPABASE_URL}`)
+})

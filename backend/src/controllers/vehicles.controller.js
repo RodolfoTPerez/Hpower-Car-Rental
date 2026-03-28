@@ -1,26 +1,46 @@
 const supabase = require('../config/supabase')
 const { success, error } = require('../utils/response')
-
 const getAll = async (req, res) => {
   try {
-    const { category, status, brand } = req.query
+    const { brand_id } = req.query;
+    const activeBrand = parseInt(brand_id) || 1;
 
-    let query = supabase
-      .from('vehicles')
-      .select(`*, vehicle_categories(id, name, icon)`)
-      .order('created_at', { ascending: false })
+    console.log("--- INICIO DE PETICIÓN ---");
+    console.log("ID de Oficina recibido (Query):", brand_id);
+    console.log("ID de Oficina procesado (ActiveBrand):", activeBrand);
 
-    if (category) query = query.eq('category_id', category)
-    if (status)   query = query.eq('status', status)
-    if (brand)    query = query.ilike('brand', `%${brand}%`)
+    // Ejecutamos TU SQL directamente a través del RPC
+    console.log("Llamando a RPC: get_vehicles_with_rates...");
+    
+    const { data, error: err } = await supabase
+      .rpc('get_vehicles_with_rates', { p_brand_id: activeBrand });
 
-    const { data, error: err } = await query
-    if (err) return error(res, 'Error al obtener vehículos', 500, err)
-    return success(res, data)
+    if (err) {
+      console.error("❌ ERROR EN RPC:", err.message);
+      console.error("Detalles del error:", err);
+      return error(res, 'Error en la consulta de tarifas', 500, err);
+    }
+
+    console.log("✅ RESPUESTA DE SUPABASE RECIBIDA");
+    console.log("Cantidad de registros encontrados:", data ? data.length : 0);
+    
+    if (data && data.length > 0) {
+      console.log("Primer registro de muestra:", data[0]);
+    } else {
+      console.log("⚠️ ATENCIÓN: La consulta no devolvió filas. Revisa el brand_id y la fecha en la DB.");
+    }
+
+    console.log("--- FIN DE PETICIÓN ---");
+
+    // Retornamos los datos tal cual los escupe tu SELECT
+    return success(res, data);
+
   } catch (err) {
-    return error(res, 'Error interno', 500, err)
+    console.error("🔥 FALLO CRÍTICO EN EL CONTROLADOR:", err);
+    return error(res, 'Error interno', 500, err);
   }
-}
+};
+
 
 const getAvailable = async (req, res) => {
   try {

@@ -21,7 +21,6 @@ const HQ_API_LOCATIONS_URL = process.env.HQ_API_LOCATIONS_URL
 const HQ_API_CLASSES_URL   = process.env.HQ_API_CLASSES_URL
 const HQ_API_RATES_URL     = process.env.HQ_API_RATES_URL
 const HQ_API_SEASONS_URL   = process.env.HQ_API_SEASONS_URL 
-const HQ_API_CHARGES_URL   = process.env.HQ_API_CHARGES_URL || 'https://api-america-miami.us4.hqrentals.app/api-america-miami/fleets/additional-charges'
 
 const HQ_HEADERS = {
   'Authorization': process.env.HQ_API_TOKEN,
@@ -75,160 +74,152 @@ const parseBrandModel = (label) => {
 ══════════════════════════════════════════ */
 
 // FUNCIÓN ACTUALIZADA: Sincronización de Seasons y Rates (Filtro 2026 y Fix de catMap)
-const syncSeasons = async (rawData) => {
-  try {
-    const results = { inserted: 0, skipped: 0, errors: [] };
-    const items = Array.isArray(rawData) ? rawData : (rawData.data || []);
+const syncSeasons = async (hqSeasons) => {
+  console.log(`\n🚀 [INICIO SYNC] Analizando array de HQ con ${hqSeasons.length} elementos.`);
+  const results = { inserted: 0, skipped: 0, errors: [] };
 
-    console.log(`\n--- [SEASONS] Procesando ${items.length} registros ---`);
+  // 1. Auditoría de dependencias
+  const { data: locations } = await supabase.from('locations').select('id, name');
+  const validLocs = new Set(locations?.map(l => l.id) || []);
+  console.log(`📍 DB Local tiene ${validLocs.size} oficinas autorizadas: [${Array.from(validLocs).join(', ')}]`);
 
-    for (const s of items) {
-      if (!s || !s.id) {
-        results.skipped++;
-        continue;
-      }
+  const { data: categories } = await supabase.from('vehicle_categories').select('id, hq_class_ids');
+  const catMap = {};
+  categories?.forEach(c => c.hq_class_ids?.forEach(id => catMap[id] = c.id));
 
-      // FILTRO: Solo 2025 en adelante
-      const year = s.date_start ? new Date(s.date_start).getUTCFullYear() : 0;
-      if (year < 2025) {
-        results.skipped++;
-        continue;
-      }
+  // 2. Procesamiento registro por registro
+  for (const [index, s] of hqSeasons.entries()) {
+    console.log(`\n--- [PASO ${index + 1}] Analizando Season ID: ${s.id} ("${s.name}") ---`);
 
-      const { error } = await supabase
-        .from('seasons')
-        .upsert({
-          id: s.id,
-          brand_id: s.brand_id,
-          name: s.name,
-          date_start: s.date_start ? s.date_start.split('T')[0] : null,
-          date_end: s.date_end ? s.date_end.split('T')[0] : null,
-          created_at: new Date()
-        }, { onConflict: 'id' });
+    // Limpieza de fechas
+    const startDate = s.date_start?.split('T')[0];
+    const endDate = s.date_end?.split('T')[0];
 
-      if (error) {
-        results.errors.push(`ID ${s.id}: ${error.message}`);
-      } else {
-        results.inserted++;
-      }
+    const startYear = parseInt(startDate.substring(0, 4));
+    const endYear = parseInt(endDate.substring(0, 4));
+
+    console.log(`   📅 Rango: ${startDate} al ${endDate} | Oficina HQ: ${s.brand_id}`);
+
+    // FILTRO DE AÑO 2026
+    const toca2026 = (startYear >= 2025 && endYear >= 2026);
+    if (!toca2026) {
+      console.log(`   ❌ SALTADO: No toca el año 2026 (Rango fuera de interés).`);
+      results.skipped++;
+      continue;
     }
-    return results;
-  } catch (err) {
-    console.error("Error en syncSeasons:", err.message);
-    return { inserted: 0, error: err.message };
-  }
-};
+    console.log(`   ✅ FILTRO AÑO: Pasa el filtro de 2026.`);
 
+    // VALIDACIÓN DE OFICINA
+    if (!validLocs.has(s.brand_id)) {
+      console.log(`   ❌ ERROR FK: La oficina ${s.brand_id} NO EXISTE en tu tabla 'locations'. Corre el sync de locations primero.`);
+      results.skipped++;
+      continue;
+    }
+    console.log(`   ✅ OFICINA: ID ${s.brand_id} encontrada en DB local.`);
+
+    // GUARDADO EN SUPABASE
+    console.log(`   💾 Intentando UPSERT en tabla 'seasons'...`);
+    const { error: sError } = await supabase.from('seasons').upsert({
+      id: s.id,
+      brand_id: s.brand_id,
+      name: s.name,
+      date_start: startDate,
+      date_end: endDate
+    }, { onConflict: 'id' });
+
+    if (sError) {
+      console.log(`   🔴 ERROR DB (Season): ${sError.message}`);
+      results.errors.push({ id: s.id, error: sError.message });
+      continue;
+    }
+    console.log(`   ✨ Season guardada con éxito.`);
+
+    // PROCESAR RATES
+    if (s.rates && s.rates.length > 0) {
+      console.log(`   💰 Procesando ${s.rates.length} tarifas internas...`);
+      let ratesSaved = 0;
+      for (const r of s.rates) {
+        const catUuid = catMap[r.vehicle_class_id];
+        if (catUuid) {
+          const { error: rError } = await supabase.from('vehicle_rates').upsert({
+            vehicle_class_id: catUuid,
+            location_id: s.brand_id,
+            season_id: s.id,
+            daily_rate: parseFloat(r.daily_rate) || 0,
+            weekly_rate: parseFloat(r.weekly_rate) || 0,
+            monthly_rate: parseFloat(r.monthly_rate) || 0,
+            start_date: startDate,
+            end_date: endDate
+          }, { onConflict: 'vehicle_class_id, location_id, season_id' });
+          
+          if (!rError) ratesSaved++;
+        }
+      }
+      console.log(`   📈 Tarifas actualizadas: ${ratesSaved} de ${s.rates.length}`);
+    } else {
+      console.log(`   ⚠️ No se encontraron rates en el JSON para esta temporada.`);
+    }
+
+    results.inserted++;
+  }
+
+  console.log(`\n🏁 [FIN DEL PROCESO] Insertados/Actualizados: ${results.inserted} | Saltados: ${results.skipped} | Errores: ${results.errors.length}`);
+  return results;
+};
 
 /* ══════════════════════════════════════════
    SYNC LOGIC: syncLocations (CORREGIDA)
 ══════════════════════════════════════════ */
 const syncLocations = async (hqLocations) => {
   try {
-    const results = { inserted: 0, skipped: 0, errors: [] };
+    const results = { inserted: 0, skipped: 0, errors: [] }; // Añadimos 'skipped' para control
 
     if (!hqLocations || !Array.isArray(hqLocations)) {
+      console.log('⚠️ No se recibieron locaciones válidas.');
       return results;
     }
 
+    console.log(`\n📍 [LOCATIONS] Sincronizando ${hqLocations.length} sedes...`);
+
     for (const loc of hqLocations) {
-      // Filtro ID 9 (sede interna)
+      
+      // ─── FILTRO PARA EVITAR EL ID 9 ───
       if (loc.id === 9 || loc.id === "9") {
+        console.log(`🚫 Saltando locación con ID: ${loc.id} (Filtro activo)`);
         results.skipped++;
-        continue;
+        continue; // Salta a la siguiente iteración del loop
       }
 
-      // Mapeamos los campos de HQ a nuestra tabla `locations`
       const locationData = {
-        id:              loc.id,
-        name:            loc.label_for_website_translated || loc.label_for_website?.en || loc.name,
-        city:            loc.city    || null,
-        state:           loc.state   || null,
-        address:         loc.address || null,
-        phone:           loc.phone_number || null,
-        active:          loc.active ?? true,
-        pick_up_allowed: loc.pick_up_allowed ?? true,
-        return_allowed:  loc.return_allowed  ?? true,
-        brand_id:        loc.brand_id || null,
+        id: loc.id,
+        name: loc.name,
+        city: loc.city || null,
+        state: loc.state || null,
+        address: loc.address || null,
+        phone: loc.phone || null,
+        active: loc.active ?? true,
+        brand_id: loc.brand_id,
+        updated_at: new Date()
       };
 
       const { error } = await supabase
         .from('locations')
-        .upsert([locationData], { onConflict: 'id' });
+        .upsert(locationData, { onConflict: 'id' });
 
       if (error) {
-        console.log(`❌ Error Location ID ${loc.id}: ${error.message}`);
         results.errors.push({ id: loc.id, error: error.message });
       } else {
-        console.log(`✅ Location guardada: ${locationData.name}`);
         results.inserted++;
       }
     }
     
+    console.log(`✅ Proceso terminado. Insertados: ${results.inserted}, Saltados: ${results.skipped}`);
     return results;
   } catch (err) {
     console.error('Error en syncLocations:', err.message);
     return { inserted: 0, error: err.message };
   }
 };
-
-/* ══════════════════════════════════════════
-   SYNC LOGIC: syncCharges (NUEVO)
-══════════════════════════════════════════ */
-const syncCharges = async (hqCharges) => {
-  try {
-    console.log(`\n--- [CHARGES] Analizando ${hqCharges.length} cargos extra desde HQ ---`);
-    const results = { inserted: 0, skipped: 0, errors: [] };
-
-    // WHITELIST DE IDs AUTORIZADOS
-    const validCat1 = [136, 135, 131, 130, 52];
-    const validCat4 = [139, 138, 88, 2];
-
-    for (const charge of hqCharges) {
-      const catId = charge.additional_charge_category_id;
-      const chargeId = charge.id;
-
-      // Filtro 1: Solo categorías 1 y 4, y solo IDs en la lista blanca
-      if (catId === 1 && !validCat1.includes(chargeId)) { results.skipped++; continue; }
-      if (catId === 4 && !validCat4.includes(chargeId)) { results.skipped++; continue; }
-      if (catId !== 1 && catId !== 4) { results.skipped++; continue; }
-
-      // Filtro 2: Exclusiones de Brand (Ignorar si excluye 1, 2 y 3)
-      const exBrands = charge.excluded_brands || [];
-      if (exBrands.includes("1") && exBrands.includes("2") && exBrands.includes("3")) {
-        results.skipped++; 
-        continue;
-      }
-
-      // Preparar payload para Supabase
-      const chargeData = {
-        id: chargeId,
-        additional_charge_category_id: catId,
-        name: charge.label_for_website?.en || charge.name,
-        charge_type: charge.charge_type, // 'amount', 'daily', 'percent'
-        percent_amount: charge.percent_amount || {},
-        excluded_brands: exBrands,
-        source: 'hq'
-      };
-
-      const { error } = await supabase
-        .from('charges')
-        .upsert(chargeData, { onConflict: 'id' });
-
-      if (error) {
-         results.errors.push(`ID ${chargeId}: ${error.message}`);
-      } else {
-         results.inserted++;
-      }
-    }
-    return results;
-  } catch(e) {
-    console.error("Error en syncCharges:", e.message);
-    return { inserted: 0, error: e.message };
-  }
-};
-
-
 const syncCategories = async (hqClasses) => {
   console.log(`\n--- [CATEGORIES] Iniciando guardado de ${hqClasses.length} clases ---`);
   const results = { inserted: 0, updated: 0, skipped: 0, errors: [] }
@@ -329,6 +320,7 @@ const syncVehicles = async (hqVehicles) => {
 };
 
 const syncVehicleRates = async (hqRates) => {
+  console.log(`\n--- [RATES] Iniciando guardado de ${hqRates.length} tarifas ---`);
   const { data: categories } = await supabase.from('vehicle_categories').select('id, hq_class_ids');
   const catMap = {};
   categories?.forEach(c => c.hq_class_ids?.forEach(id => catMap[id] = c.id));
@@ -336,49 +328,33 @@ const syncVehicleRates = async (hqRates) => {
   const results = { inserted: 0, skipped: 0, errors: [] };
 
   for (const rate of hqRates) {
-    const categoryUuid = catMap[rate.vehicle_class_id];
-    const s = rate.season;
-    
-    if (!categoryUuid || !s) {
+    const uuid = catMap[rate.vehicle_class_id];
+    if (!uuid) { results.skipped++; continue; }
+
+    const dailyPrice = parseFloat(rate.daily_rate) || 0;
+    const rawStart = rate.season?.date_start;
+    const rawEnd = rate.season?.date_end;
+
+    if (dailyPrice <= 0 || !rawStart || !rawEnd) {
       results.skipped++;
       continue;
     }
 
-    // FILTRO: Solo 2025 en adelante
-    const year = s.date_start ? new Date(s.date_start).getUTCFullYear() : 0;
-    if (year < 2025) {
-      results.skipped++;
-      continue;
-    }
+    const { error } = await supabase.from('vehicle_rates').upsert({
+        vehicle_class_id: uuid,
+        season_id: rate.season_id,
+        daily_rate: dailyPrice,
+        weekly_rate: parseFloat(rate.weekly_rate) || 0,
+        monthly_rate: parseFloat(rate.monthly_rate) || 0,
+        start_date: rawStart.split('T')[0], 
+        end_date: rawEnd.split('T')[0]
+      }, { onConflict: 'vehicle_class_id, season_id' });
 
-    const locIds = Array.isArray(rate.locations) ? rate.locations : [];
-    if (locIds.length === 0) {
-      results.skipped++;
-      continue;
-    }
-
-    for (const locId of locIds) {
-      const { error } = await supabase.from('vehicle_rates').upsert({
-          vehicle_class_id: categoryUuid,
-          season_id: rate.season_id,
-          location_id: parseInt(locId), 
-          daily_rate: parseFloat(rate.daily_rate) || 0,
-          start_date: s.date_start?.split('T')[0], 
-          end_date: s.date_end?.split('T')[0]
-        }, { 
-          onConflict: 'vehicle_class_id, season_id, location_id' 
-        });
-
-      if (error) {
-        results.errors.push(`Clase ${rate.vehicle_class_id} (Loc ${locId}): ${error.message}`);
-      } else {
-        results.inserted++;
-      }
-    }
+    if (error) results.errors.push(`ID ${rate.id}: ${error.message}`);
+    else results.inserted++;
   }
   return results;
 };
-
 
 /* ══════════════════════════════════════════
    SYNC ENDPOINTS
@@ -386,11 +362,7 @@ const syncVehicleRates = async (hqRates) => {
 
 app.get('/api/sync/all', async (req, res) => {
   try {
-    console.log("\n🚀 INICIANDO SINCRONIZACIÓN TOTAL (2025+ Filter Active)");
-
-    // Limpieza opcional de tablas antes de sincronizar (solo para evitar basura vieja)
-    // await supabase.from('vehicle_rates').delete().neq('id', 0); // Limpia todo
-    // await supabase.from('seasons').delete().neq('id', 0);
+    console.log("\n🚀 INICIANDO SINCRONIZACIÓN TOTAL");
 
     // 1. LOCATIONS (Con filtro de ID 9 ya integrado en la función)
     const locRes = await fetch(HQ_API_LOCATIONS_URL, { headers: HQ_HEADERS }).then(r => r.json());
@@ -411,17 +383,11 @@ app.get('/api/sync/all', async (req, res) => {
     const resV = await syncVehicles(vehData);
     console.log(`✅ Vehículos sincronizados: ${resV.inserted}`);
 
-    // 4. SEASONS (Temporadas base)
+    // 4. SEASONS & RATES (Dependen de todo lo anterior)
     const seasonsRes = await fetch(HQ_API_SEASONS_URL, { headers: HQ_HEADERS }).then(r => r.json());
     const seasonsData = Array.isArray(seasonsRes) ? seasonsRes : (seasonsRes.data || []);
     const resS = await syncSeasons(seasonsData);
-    console.log(`✅ Temporadas sincronizadas: ${resS.inserted}`);
-
-    // 5. RATES (Tarifas ligadas a temporadas y categorías)
-    const ratesRes = await fetch(HQ_API_RATES_URL, { headers: HQ_HEADERS }).then(r => r.json());
-    const ratesData = Array.isArray(ratesRes) ? ratesRes : (ratesRes.data || []);
-    const resR = await syncVehicleRates(ratesData);
-    console.log(`✅ Tarifas sincronizadas: ${resR.inserted}`);
+    console.log(`✅ Temporadas y Tarifas sincronizadas: ${resS.inserted}`);
 
     // Respuesta final consolidada
     res.json({ 
@@ -430,8 +396,7 @@ app.get('/api/sync/all', async (req, res) => {
         locations: resL, 
         categories: resC, 
         vehicles: resV, 
-        seasons: resS,
-        rates: resR
+        seasons_and_rates: resS 
       }
     });
 
@@ -497,34 +462,15 @@ app.get('/api/sync/rates', async (req, res) => {
 // ENDPOINT ACTUALIZADO PARA SEASONS
 app.get('/api/sync/seasons', async (req, res) => {
   try {
-    console.log("--- Sincronizando Seasons (Filtrado en helper) ---");
-    const response = await fetch(HQ_API_SEASONS_URL, { headers: HQ_HEADERS });
-    const json = await response.json();
-    const results = await syncSeasons(json);
+    console.log("\n--- CONSULTANDO HQ RENTALS (SEASONS 2026) ---");
+    const r = await fetch(HQ_API_SEASONS_URL, { headers: HQ_HEADERS }).then(res => res.json());
+    const rawSeasons = Array.isArray(r) ? r : (r.data || []);
+    const results = await syncSeasons(rawSeasons);
     res.json({ success: true, ...results });
-  } catch (e) {
-    console.error("Error en Sync Seasons:", e.message);
-    res.status(500).json({ success: false, error: e.message });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });
-
-app.get('/api/sync/charges', async (req, res) => {
-  try {
-    const response = await fetch(HQ_API_CHARGES_URL, { headers: HQ_HEADERS });
-    const json = await response.json();
-    const items = json.fleets_additional_charges || (Array.isArray(json) ? json : json.data) || [];
-    const results = await syncCharges(items);
-    res.json({ success: true, count_received: items.length, ...results });
-  } catch(e) {
-    console.error("Error en Sync Charges:", e.message);
-    res.status(500).json({ success: false, error: e.message });
-  }
-});
-/* ══════════════════════════════════════════
-   AUTH ROUTES
-══════════════════════════════════════════ */
-const authRoutes = require('./routes/auth.routes')
-app.use('/api/v1/auth', authRoutes)
 
 /* ══════════════════════════════════════════
    API V1 ENDPOINTS (Frontend)
@@ -624,47 +570,6 @@ router.get('/vehicles', async (req, res) => {
   }
 });
 
-// NUEVO ENDPOINT PARA STEP 2 WIZARD
-router.get('/charges', async (req, res) => {
-  try {
-    const { location_id } = req.query; // location_id acts as brand_id for now as user defined 1=Miami, 2=Charlotte, etc.
-    
-    // 1. Obtener todas las categorías
-    const { data: categories, error: catErr } = await supabase
-      .from('fleets_categories')
-      .select('*')
-      .order('id');
-    if (catErr) throw catErr;
-
-    // 2. Obtener todos los cargos
-    const { data: charges, error: charErr } = await supabase
-      .from('charges')
-      .select('*')
-      .order('id');
-    if (charErr) throw charErr;
-
-    // 3. Filtrar cargos por excluded_brands
-    let filteredCharges = charges;
-    if (location_id && location_id !== 'undefined') {
-      const brandIdStr = String(location_id);
-      filteredCharges = charges.filter(c => {
-        const excluded = c.excluded_brands || [];
-        return !excluded.includes(brandIdStr);
-      });
-    }
-
-    res.json({
-      success: true,
-      data: {
-        categories: categories || [],
-        charges: filteredCharges || []
-      }
-    });
-  } catch(e) {
-    res.status(500).json({ success: false, error: e.message });
-  }
-});
-
 app.get('/health', (req, res) => res.send('OK'));
 // NUEVO ENDPOINT PARA CONTADORES REALES
 router.get('/fleet/counters', async (req, res) => {
@@ -710,7 +615,21 @@ router.get('/fleet/counters', async (req, res) => {
   }
 });
 
-// NOTA: El endpoint GET /locations ya está definido arriba (línea ~471) con filtro active=true
+/* ── NUEVO ENDPOINT: TRAER SEDES DINÁMICAMENTE ── */
+router.get('/locations', async (req, res) => {
+  try {
+// EN EL BACKEND DEL HQ (Archivo de rutas o controladores)
+  const { data, error } = await supabase
+    .from('locations')
+    .select('id, name, city, state, address, phone, active, brand_id') // <--- ASEGÚRATE QUE ESTÉ AQUÍ
+    .order('city', { ascending: true });
+
+    if (error) throw error;
+    res.json({ success: true, data });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 app.listen(PORT, () => {
   console.log(`\n🚀 Server corriendo en puerto ${PORT}`)

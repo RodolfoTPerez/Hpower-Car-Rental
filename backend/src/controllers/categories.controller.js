@@ -47,6 +47,7 @@ const create = async (req, res) => {
 }
 
 const update = async (req, res) => {
+  console.log("✅ RESPUESTA DE SUPABASE RECIBIDA");
   try {
     const { data, error: err } = await supabase
       .from('vehicle_categories')
