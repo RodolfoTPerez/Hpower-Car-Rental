@@ -1,0 +1,75 @@
+debera haber una tabla excusiva de taxes para la location 1 (Miami)
+La tabla debera contener ID (Locations)  y Label (Sale Tax)   mount (7%)
+
+otra tabla de fleets_categories
+esta tabla debera tener 3 categorias
+id_categories
+label 
+
+las 3 categorias que deberan estar en esta tabla son:   
+
+
+additional_charge_category_id: 1     name: Coverages
+additional_charge_category_id: 3     name:  Other feeds
+additional_charge_category_id: 4     name: Services
+
+Otra tabla que contendra la informacion de fleets-charges  que seria tabla de cargos adicionales
+endpoint de cargos adiconales
+https://api-america-miami.us4.hqrentals.app/api-america-miami/fleets/additional-charges
+este endpoint se sincronizara con HQ y solamente debera traer:
+
+los campos que debera traerse del endpoint son los siguientes:
+mira el json del  endpoint
+fleets_additional_charges": [
+        {
+            "id": 1,
+            "additional_charge_category_id" 
+            "name":  
+            "charge_type":    
+			
+            "percent_amount": {
+                "1": {
+                    "amount": "65"
+                },
+                "2": {
+                    "amount": "65"
+                },
+                "3": {
+                    "amount": "65"
+                }
+            },
+           
+
+
+
+estructura de la tabla aditional-charges
+id_charge
+additional_charge_category_id
+name
+charge_type
+percent_amount =  tendra la informac ion por brand_id
+
+percent_amount 
+           1   amount  -   (EL VALOR 1 EQUIVALE A MIAMI)  
+		   2   amount      (el valor 2 equivale a Charlotte)
+		   3   amount      el valor 3 equivale a Nashville
+		   
+estos valores equivales al Brand_id de la tabla locations
+CONSIDERAR
+
+charge_type podra tener cualquiera de estos 3 valores:  amount, daily y percent_amount
+
+charge_type   = amount   (indica que se cobrara una sola vez , osea un solo monto)
+si charge_type = daily  se cobrara el valor en amount por la cantidad de dias del vehiculo rentado
+si charge_type =Percent  
+se debera calcular los montos de la siguiente manera:
+
+
+cuando ejecutes la sincronizacion del endpoint  https://api-america-miami.us4.hqrentals.app/api-america-miami/fleets/additional-charges
+
+deberas traer lo siguiente
+
+los additional_charge_category_id que sean iguales a 1
+     id = 136,135,133,132,131,139
+	 
+	 

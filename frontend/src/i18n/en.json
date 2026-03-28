@@ -14,9 +14,12 @@
     "hero_subtitle": "The best vehicles at the best price",
     "search_title": "Find your ideal vehicle",
     "pickup_location": "Pickup location",
+    "pickup_time": "Pickup time",
+    "return_location": "Return location",
     "pickup_location_placeholder": "Miami, FL",
     "pickup_date": "Pickup date",
     "return_date": "Return date",
+    "return_time": "Return time",
     "search_btn": "Search vehicles",
     "stat_vehicles": "Vehicles",
     "stat_rating": "Rating",
@@ -158,12 +161,19 @@
     "all_categories": "All categories",
     "filter_by_location": "Location",
     "filter_by_category": "Category",
+    "units_available": "units available",
     "status": {
       "available": "Available",
       "rented": "Rented",
       "maintenance": "Maintenance",
       "inactive": "Inactive"
-    }
+    },
+    "booking_summary": "Booking Summary",
+    "pickup": "Pickup",
+    "return": "Return",
+    "confirm_booking": "Confirm Booking",
+    "select_to_continue": "Select a vehicle to continue",
+    "selected": "Selected"
   },
   "reservation": {
     "title": "New Reservation",

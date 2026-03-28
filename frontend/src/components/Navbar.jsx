@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import React from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
@@ -9,7 +9,7 @@ const Navbar = () => {
   const { user, logout } = useAuth()
   const { theme, changeTheme } = useTheme()
   const navigate = useNavigate()
-  const [menuOpen, setMenuOpen] = useState(false)
+
 
   const handleLogout = () => {
     logout()
@@ -38,17 +38,34 @@ const Navbar = () => {
       alignItems: 'center',
       justifyContent: 'space-between'
     }}>
-      <Link to="/" style={{
-        fontFamily: 'Bebas Neue, sans-serif',
-        fontSize: '24px',
-        color: 'var(--accent)',
-        textDecoration: 'none',
-        letterSpacing: '2px'
-      }}>
-        HPOWER
+      {/* Logo y Nombre a la Izquierda */}
+      <Link 
+        to="/" 
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          textDecoration: 'none',
+          zIndex: 1001
+        }}
+      >
+        <img 
+          src="https://xtvopaehirznzeyuanwc.supabase.co/storage/v1/object/public/logos/logo_hpower.png" 
+          alt="HPOWER Logo"
+          style={{ height: '40px', width: 'auto', objectFit: 'contain' }}
+        />
+        <span style={{
+          fontFamily: 'Bebas Neue, sans-serif',
+          fontSize: '28px',
+          color: 'var(--accent)',
+          letterSpacing: '2px',
+          textTransform: 'uppercase'
+        }}>
+          HPOWER Car Rental
+        </span>
       </Link>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '24px', zIndex: 1000 }}>
         <Link to="/" style={{ color: 'var(--text-primary)', textDecoration: 'none', fontSize: '14px' }}>
           {t('nav.home')}
         </Link>

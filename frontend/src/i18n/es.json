@@ -14,9 +14,12 @@
     "hero_subtitle": "Los mejores vehículos al mejor precio",
     "search_title": "Busca tu vehículo ideal",
     "pickup_location": "Lugar de recogida",
+    "pickup_time": "Hora recogida",
+    "return_location": "Lugar de devolución",
     "pickup_location_placeholder": "Miami, FL",
     "pickup_date": "Fecha de recogida",
     "return_date": "Fecha de devolución",
+    "return_time": "Hora devolución",
     "search_btn": "Buscar vehículos",
     "stat_vehicles": "Vehículos",
     "stat_rating": "Calificación",
@@ -158,12 +161,19 @@
     "all_categories": "Todas las categorías",
     "filter_by_location": "Ubicación",
     "filter_by_category": "Categoría",
+    "units_available": "unidades disponibles",
     "status": {
       "available": "Disponible",
       "rented": "Rentado",
       "maintenance": "Mantenimiento",
       "inactive": "Inactivo"
-    }
+    },
+    "booking_summary": "Resumen de Renta",
+    "pickup": "Recogida",
+    "return": "Devolución",
+    "confirm_booking": "Continuar Reserva",
+    "select_to_continue": "Seleccione un vehículo para continuar",
+    "selected": "Seleccionado"
   },
   "reservation": {
     "title": "Nueva Reservación",

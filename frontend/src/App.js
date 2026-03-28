@@ -11,6 +11,7 @@ import Register from './pages/Register'
 import MyAccount from './pages/MyAccount'
 import About from './pages/About'
 import Contact from './pages/Contact'
+import Booking from './pages/Booking'
 import Dashboard from './pages/admin/Dashboard'
 import Vehicles from './pages/admin/Vehicles'
 
@@ -34,6 +35,7 @@ const AppRoutes = () => {
         <Route path="/fleet" element={<Fleet />} />
         <Route path="/about" element={<About />} />
         <Route path="/contact" element={<Contact />} />
+        <Route path="/booking" element={<Booking />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/account" element={
