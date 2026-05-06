@@ -1,0 +1,2056 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel Administrativo - Hpower Car Rental</title>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="js/supabase-client.js"></script>
+    <style>
+        :root {
+            --primary: #4ecca3;
+            --primary-glow: rgba(78, 204, 163, 0.3);
+            --bg: #0b1120;
+            --sidebar-bg: rgba(15, 23, 42, 0.8);
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --text-primary: #ffffff;
+            --text-secondary: #94a3b8;
+            --border: rgba(255, 255, 255, 0.1);
+            --accent-hover: rgba(78, 204, 163, 0.1);
+            --success: #10b981;
+            --error: #ef4444;
+            --warning: #f59e0b;
+            --glass: blur(12px);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; }
+        
+        body {
+            background: radial-gradient(circle at top right, #1e293b, #0b1120);
+            color: var(--text-primary);
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* Sidebar Styles */
+        .sidebar {
+            width: 260px;
+            background: var(--sidebar-bg);
+            backdrop-filter: var(--glass);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            transition: all 0.3s;
+        }
+
+        .sidebar-header {
+            padding: 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .logo-box {
+            width: 35px;
+            height: 35px;
+            background: var(--primary);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #000;
+        }
+
+        .brand-name {
+            font-weight: 700;
+            font-size: 1.1em;
+            letter-spacing: 0.5px;
+        }
+
+        .nav-menu {
+            flex: 1;
+            padding: 20px 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            overflow-y: auto;
+        }
+
+        .nav-section-title {
+            font-size: 0.7em;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--text-secondary);
+            margin: 15px 12px 8px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 14px;
+            border-radius: 10px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+            background: transparent;
+            width: 100%;
+            text-align: left;
+            font-size: 0.95em;
+        }
+
+        .nav-item:hover {
+            background: var(--accent-hover);
+            color: var(--primary);
+        }
+
+        .nav-item.active {
+            background: var(--primary);
+            color: #000;
+            font-weight: 600;
+            box-shadow: 0 0 15px var(--primary-glow);
+        }
+
+        .sidebar-footer {
+            padding: 20px;
+            border-top: 1px solid var(--border);
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .user-avatar {
+            width: 32px;
+            height: 32px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8em;
+        }
+
+        .user-details .name { font-size: 0.9em; font-weight: 600; }
+        .user-details .role { font-size: 0.75em; color: var(--text-secondary); }
+
+        .btn-logout {
+            width: 100%;
+            padding: 10px;
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--error);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.85em;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background: #0b1120;
+        }
+
+        .top-bar {
+            height: 70px;
+            padding: 0 30px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border);
+            background: var(--bg);
+        }
+
+        .page-title { font-size: 1.25em; font-weight: 600; }
+
+        .content-area {
+            flex: 1;
+            padding: 30px;
+            overflow-y: auto;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 10px;
+            margin-bottom: 25px;
+        }
+
+        @media (max-width: 1400px) {
+            .stats-grid { grid-template-columns: repeat(3, 1fr); }
+        }
+
+        @media (max-width: 900px) {
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        .stat-card {
+            background: rgba(78, 204, 163, 0.15);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border: 1px solid rgba(78, 204, 163, 0.3);
+            border-radius: 12px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 90px;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            box-shadow: 0 4px 20px rgba(78, 204, 163, 0.15);
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 30px rgba(78, 204, 163, 0.3);
+            border-color: rgba(78, 204, 163, 0.5);
+            background: rgba(78, 204, 163, 0.2);
+        }
+
+        .stat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: var(--text-secondary);
+            font-size: 0.7em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+
+        .stat-value {
+            font-size: 1.1em;
+            font-weight: 700;
+            color: var(--primary);
+            line-height: 1.2;
+        }
+
+        .stat-footer {
+            font-size: 0.7em;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            margin-top: 4px;
+        }
+
+        /* Tables */
+        .card {
+            background: var(--card-bg);
+            backdrop-filter: var(--glass);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+
+        /* Sync Module Styles */
+        .sync-item {
+            background: rgba(15, 23, 42, 0.5);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 15px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            transition: all 0.3s ease;
+        }
+
+        .sync-item:hover {
+            border-color: var(--primary-glow);
+            background: rgba(15, 23, 42, 0.8);
+        }
+
+        .sync-icon {
+            width: 40px;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
+        }
+
+        .sync-item.active .sync-icon {
+            color: var(--primary);
+            background: var(--primary-glow);
+            animation: pulse 2s infinite;
+        }
+
+        .sync-item.success .sync-icon {
+            color: var(--success);
+            background: rgba(16, 185, 129, 0.1);
+        }
+
+        .sync-item.error .sync-icon {
+            color: var(--error);
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(78, 204, 163, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(78, 204, 163, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(78, 204, 163, 0); }
+        }
+
+        .btn-pulse {
+            animation: pulse-strong 1s infinite;
+            transform: scale(1.05);
+        }
+        
+        @keyframes pulse-strong {
+            0% {
+                transform: scale(1.05);
+                box-shadow: 0 0 0 0 rgba(78, 204, 163, 0.7);
+            }
+            50% {
+                transform: scale(1.1);
+                box-shadow: 0 0 20px 10px rgba(78, 204, 163, 0.5);
+            }
+            100% {
+                transform: scale(1.05);
+                box-shadow: 0 0 0 0 rgba(78, 204, 163, 0);
+            }
+        }
+
+        .progress-mini {
+            height: 4px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 2px;
+            margin-top: 8px;
+            overflow: hidden;
+            width: 100%;
+        }
+
+        .progress-mini-bar {
+            height: 100%;
+            background: var(--primary);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .card-title {
+            font-size: 1.1em;
+            font-weight: 600;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; padding: 12px; font-size: 0.8em; color: var(--text-secondary); border-bottom: 1px solid var(--border); text-transform: uppercase; }
+        td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 0.9em; }
+
+        .status-badge {
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.75em;
+            font-weight: 600;
+        }
+
+        .btn-action {
+            background: var(--primary);
+            color: #000;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 0.85em;
+        }
+
+        /* Notifications & Sync UI */
+        .sync-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 15px;
+            background: rgba(255,255,255,0.03);
+            border-radius: 12px;
+            margin-bottom: 10px;
+        }
+
+        /* Select dropdown styling for dark theme */
+        select option {
+            background: var(--card-bg);
+            color: var(--text-primary);
+        }
+
+        /* Loading spinner animation */
+        .spin {
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <div class="logo-box"><i data-lucide="car"></i></div>
+            <div class="brand-name">HPOWER ADMIN</div>
+        </div>
+
+        <nav class="nav-menu" id="nav-menu">
+            <div class="nav-section-title">Principal</div>
+            <button class="nav-item active" onclick="showSection('dashboard')">
+                <i data-lucide="layout-dashboard"></i> Dashboard
+            </button>
+            <button class="nav-item" onclick="showSection('reservations')">
+                <i data-lucide="calendar"></i> Reservas
+            </button>
+            <button class="nav-item" onclick="showSection('fleet')">
+                <i data-lucide="car-front"></i> Flota / Vehículos
+            </button>
+            <button class="nav-item" onclick="showSection('hq_reservations')">
+                <i data-lucide="clipboard-check"></i> Reservas HQ (Open)
+            </button>
+            <button class="nav-item" onclick="showSection('customers')">
+                <i data-lucide="users"></i> Clientes
+            </button>
+
+            <div class="nav-section-title">Configuración</div>
+            <button class="nav-item" onclick="showSection('sync')">
+                <i data-lucide="refresh-cw"></i> Sincronización HQ
+            </button>
+            <button class="nav-item" onclick="showSection('locations')">
+                <i data-lucide="map-pin"></i> Ubicaciones
+            </button>
+            <button class="nav-item" onclick="showSection('email_config')">
+                <i data-lucide="mail"></i> Configuración Email
+            </button>
+            <button class="nav-item" onclick="showSection('analytics')">
+                <i data-lucide="bar-chart-2"></i> Analytics
+            </button>
+            <button class="nav-item" onclick="showSection('users')">
+                <i data-lucide="shield"></i> Usuarios / Roles
+            </button>
+        </nav>
+
+        <div class="sidebar-footer">
+            <div class="user-info">
+                <div class="user-avatar" id="u-initials">AD</div>
+                <div class="user-details">
+                    <div class="name" id="u-name">Administrador</div>
+                    <div class="role" id="u-role">Admin Level</div>
+                </div>
+            </div>
+            <button class="btn-logout" onclick="logout()">
+                <i data-lucide="log-out"></i> Cerrar Sesión
+            </button>
+        </div>
+    </aside>
+
+    <main class="main-content">
+        <header class="top-bar">
+            <h2 class="page-title" id="page-title">Dashboard Operativo</h2>
+            <div style="display: flex; gap: 15px;">
+                <button class="btn-action" onclick="location.reload()"><i data-lucide="refresh-ccw" style="width: 14px; height: 14px; vertical-align: middle;"></i></button>
+            </div>
+        </header>
+
+        <div class="content-area" id="content-area">
+            <!-- DASHBOARD SECTION (DEFAULT) -->
+            <div id="section-dashboard">
+                <!-- Dashboard Filters -->
+                <div class="card" style="margin-bottom: 20px; padding: 15px;">
+                    <div style="display: flex; gap: 15px; align-items: center; justify-content: space-between;">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <div style="display: flex; align-items: center; gap: 8px; padding: 8px 14px; background: rgba(78, 204, 163, 0.1); border: 1px solid rgba(78, 204, 163, 0.2); border-radius: 8px;">
+                                <i data-lucide="shield-check" style="width: 16px; height: 16px; color: var(--primary);"></i>
+                                <div style="display: flex; flex-direction: column;">
+                                    <span style="font-size: 0.7em; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px;">Sesión Activa</span>
+                                    <span id="token-timer" style="font-size: 0.85em; color: var(--primary); font-weight: 600;">--:--:--</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 15px; align-items: center;">
+                            <span style="font-size: 0.85em; color: var(--text-secondary);">Periodo Dashboard:</span>
+                            <input type="date" id="dash-filter-from" class="btn-action" style="background: rgba(255,255,255,0.05); color: #fff; border: 1px solid var(--border); padding: 5px; width: 140px;">
+                            <input type="date" id="dash-filter-to" class="btn-action" style="background: rgba(255,255,255,0.05); color: #fff; border: 1px solid var(--border); padding: 5px; width: 140px;">
+                            <button class="btn-action" onclick="fetchDashboard()"><i data-lucide="refresh-cw" style="width: 14px; margin-right: 5px; vertical-align: middle;"></i>Actualizar Dashboard</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-header">Ingresos Hoy <i data-lucide="dollar-sign"></i></div>
+                        <div class="stat-value" id="stat-revenue">$0.00</div>
+                        <div class="stat-footer" style="color: var(--success);"><i data-lucide="trending-up"></i> +12% vs ayer</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">Reservas Activas <i data-lucide="clipboard-list"></i></div>
+                        <div class="stat-value" id="stat-res-active">0</div>
+                        <div class="stat-footer">En curso actualmente</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">Disponibilidad Flota <i data-lucide="car"></i></div>
+                        <div class="stat-value" id="stat-fleet">0/0</div>
+                        <div class="stat-footer">Vehículos listos hoy</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">Tasa Ocupación <i data-lucide="percent"></i></div>
+                        <div class="stat-value" id="stat-occupancy">0%</div>
+                        <div class="stat-footer" id="stat-pending-label">0 pendientes</div>
+                    </div>
+                    <!-- New Stat Cards for HQ Reservations -->
+                    <div class="stat-card">
+                        <div class="stat-header">Reservas HQ (Open) <i data-lucide="calendar-check"></i></div>
+                        <div class="stat-value" id="stat-hq-count">0</div>
+                        <div class="stat-footer">Sincronizadas desde HQ</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">Ingresos HQ (Open) <i data-lucide="banknote"></i></div>
+                        <div class="stat-value" id="stat-hq-revenue">$0.00</div>
+                        <div class="stat-footer">Estimado activo proyectado</div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">
+                        Disponibilidad por Ubicación
+                        <i data-lucide="map" style="width: 16px; height: 16px;"></i>
+                    </div>
+                    <table id="location-availability-table">
+                        <thead>
+                            <tr>
+                                <th>Ubicación</th>
+                                <th>Disponibles</th>
+                                <th>Total Flota</th>
+                                <th>Ocupación</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td colspan="5" style="text-align: center; padding: 20px; color: var(--text-secondary);">Cargando disponibilidad por ciudad...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">
+                        Resumen de Reservas HQ (Open)
+                        <div style="font-size: 0.7em; background: rgba(var(--primary-rgb), 0.1); color: var(--primary); padding: 4px 10px; border-radius: 4px;">Tactical Overview</div>
+                    </div>
+                    <table id="hq-summary-table">
+                        <thead>
+                            <tr>
+                                <th>Ubicación (Brand)</th>
+                                <th>Total Reservas</th>
+                                <th>Monto Total ($)</th>
+                                <th>% del Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td colspan="4" style="text-align: center; padding: 40px; color: var(--text-secondary);">Calculando agregados por ubicación...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- LOCATIONS SECTION -->
+            <div id="section-locations" style="display: none;">
+                <div class="card">
+                    <div class="card-title">
+                        Gestión de Ubicaciones
+                        <button class="btn-action" style="font-size: 0.7em;">+ Nueva Ubicación</button>
+                    </div>
+                    <table id="locations-management-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Nombre</th>
+                                <th>Ciudad / Estado</th>
+                                <th>Dirección</th>
+                                <th>Flota</th>
+                                <th>Estado</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td colspan="7" style="text-align: center; padding: 40px; color: var(--text-secondary);">Cargando ubicaciones...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- EMAIL CONFIG SECTION -->
+            <div id="section-email_config" style="display: none;">
+                <div class="card">
+                    <div class="card-title">
+                        Configuración de Email
+                        <button class="btn-action" style="font-size: 0.7em;" onclick="testEmailConfig()">Probar Email</button>
+                    </div>
+                    <div style="max-width: 600px;">
+                        <div style="margin-bottom: 20px;">
+                            <label style="display: block; margin-bottom: 8px; color: var(--text-secondary); font-size: 0.9em;">SMTP Host</label>
+                            <input type="text" id="email-smtp-host" value="smtp.gmail.com" style="width: 100%; padding: 10px; background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 8px; color: white;">
+                        </div>
+                        <div style="margin-bottom: 20px;">
+                            <label style="display: block; margin-bottom: 8px; color: var(--text-secondary); font-size: 0.9em;">SMTP Port</label>
+                            <input type="number" id="email-smtp-port" value="587" style="width: 100%; padding: 10px; background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 8px; color: white;">
+                        </div>
+                        <div style="margin-bottom: 20px;">
+                            <label style="display: block; margin-bottom: 8px; color: var(--text-secondary); font-size: 0.9em;">Email (Usuario SMTP)</label>
+                            <input type="email" id="email-smtp-user" placeholder="tu-email@gmail.com" style="width: 100%; padding: 10px; background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 8px; color: white;">
+                        </div>
+                        <div style="margin-bottom: 20px;">
+                            <label style="display: block; margin-bottom: 8px; color: var(--text-secondary); font-size: 0.9em;">Contraseña de Aplicación</label>
+                            <input type="password" id="email-smtp-pass" placeholder="Contraseña de aplicación de Google" style="width: 100%; padding: 10px; background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 8px; color: white;">
+                        </div>
+                        <div style="margin-bottom: 20px;">
+                            <label style="display: block; margin-bottom: 8px; color: var(--text-secondary); font-size: 0.9em;">Email de Origen (From)</label>
+                            <input type="email" id="email-from" placeholder="info@hpower.com" style="width: 100%; padding: 10px; background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 8px; color: white;">
+                        </div>
+                        <div style="margin-bottom: 20px;">
+                            <label style="display: block; margin-bottom: 8px; color: var(--text-secondary); font-size: 0.9em;">Email de Destino (To)</label>
+                            <input type="email" id="email-to" placeholder="info@hpower.com" style="width: 100%; padding: 10px; background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 8px; color: white;">
+                        </div>
+                        <div style="margin-bottom: 20px;">
+                            <label style="display: flex; align-items: center; gap: 10px; color: var(--text-secondary); font-size: 0.9em;">
+                                <input type="checkbox" id="email-active" checked>
+                                Activo
+                            </label>
+                        </div>
+                        <div style="display: flex; gap: 10px;">
+                            <button class="btn-action" onclick="saveEmailConfig()">Guardar Configuración</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SYNC SECTION -->
+            <div id="section-sync" style="display: none;">
+                <div class="card">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 25px;">
+                        <div>
+                            <h3 style="color: var(--primary); margin-bottom: 5px; letter-spacing: 0.5px;">ESTACIÓN DE SINCRONIZACIÓN MAESTRA</h3>
+                            <p style="font-size: 0.85em; color: var(--text-secondary);">Sincroniza la base de datos de Supabase con los servidores de HQ Rentals.</p>
+                        </div>
+                        <div style="display: flex; gap: 10px;">
+                            <button class="btn-action" style="background: rgba(239, 68, 68, 0.1); color: var(--error); border: 1px solid rgba(239, 68, 68, 0.2);" onclick="confirmClearDatabase()">
+                                <i data-lucide="trash-2" style="width: 16px; margin-right: 5px; vertical-align: middle;"></i> Limpiar DB
+                            </button>
+                            <button class="btn-action" id="btn-execute-all" style="background: var(--primary); color: #000; border: none; font-weight: 700; padding: 10px 20px;" onclick="runSequentialSync()">
+                                <i data-lucide="play" style="width: 16px; margin-right: 5px; vertical-align: middle;"></i> EJECUTAR TODO
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Sync Grid Modules -->
+                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; margin-bottom: 25px;">
+                        
+                        <!-- Module: Locations -->
+                        <div class="sync-item" id="sync-mod-locations">
+                            <div class="sync-icon"><i data-lucide="map-pin"></i></div>
+                            <div style="flex: 1;">
+                                <div style="font-weight: 600; font-size: 0.9em;">Ubicaciones</div>
+                                <div class="sync-status-msg" style="font-size: 0.75em; color: var(--text-secondary);">Pendiente</div>
+                                <div class="progress-mini"><div class="progress-mini-bar" style="width: 0%;"></div></div>
+                            </div>
+                            <button class="btn-action" style="padding: 5px 10px; font-size: 0.7em;" onclick="runSync('locations')">Sync</button>
+                        </div>
+
+                        <!-- Module: Categories -->
+                        <div class="sync-item" id="sync-mod-categories">
+                            <div class="sync-icon"><i data-lucide="layers"></i></div>
+                            <div style="flex: 1;">
+                                <div style="font-weight: 600; font-size: 0.9em;">Categorías</div>
+                                <div class="sync-status-msg" style="font-size: 0.75em; color: var(--text-secondary);">Pendiente</div>
+                                <div class="progress-mini"><div class="progress-mini-bar" style="width: 0%;"></div></div>
+                            </div>
+                            <button class="btn-action" style="padding: 5px 10px; font-size: 0.7em;" onclick="runSync('categories')">Sync</button>
+                        </div>
+
+                        <!-- Module: Vehicles -->
+                        <div class="sync-item" id="sync-mod-vehicles">
+                            <div class="sync-icon"><i data-lucide="car"></i></div>
+                            <div style="flex: 1;">
+                                <div style="font-weight: 600; font-size: 0.9em;">Flota Vehicular</div>
+                                <div class="sync-status-msg" style="font-size: 0.75em; color: var(--text-secondary);">Pendiente</div>
+                                <div class="progress-mini"><div class="progress-mini-bar" style="width: 0%;"></div></div>
+                            </div>
+                            <button class="btn-action" style="padding: 5px 10px; font-size: 0.7em;" onclick="runSync('vehicles')">Sync</button>
+                        </div>
+
+                        <!-- Module: Seasons -->
+                        <div class="sync-item" id="sync-mod-seasons">
+                            <div class="sync-icon"><i data-lucide="calendar"></i></div>
+                            <div style="flex: 1;">
+                                <div style="font-weight: 600; font-size: 0.9em;">Temporadas</div>
+                                <div class="sync-status-msg" style="font-size: 0.75em; color: var(--text-secondary);">Pendiente</div>
+                                <div class="progress-mini"><div class="progress-mini-bar" style="width: 0%;"></div></div>
+                            </div>
+                            <button class="btn-action" style="padding: 5px 10px; font-size: 0.7em;" onclick="runSync('seasons')">Sync</button>
+                        </div>
+
+                        <!-- Module: Rates -->
+                        <div class="sync-item" id="sync-mod-rates">
+                            <div class="sync-icon"><i data-lucide="dollar-sign"></i></div>
+                            <div style="flex: 1;">
+                                <div style="font-weight: 600; font-size: 0.9em;">Tarifas</div>
+                                <div class="sync-status-msg" style="font-size: 0.75em; color: var(--text-secondary);">Pendiente</div>
+                                <div class="progress-mini"><div class="progress-mini-bar" style="width: 0%;"></div></div>
+                            </div>
+                            <button class="btn-action" style="padding: 5px 10px; font-size: 0.7em;" onclick="runSync('rates')">Sync</button>
+                        </div>
+
+                        <!-- Module: Charges -->
+                        <div class="sync-item" id="sync-mod-charges">
+                            <div class="sync-icon"><i data-lucide="tag"></i></div>
+                            <div style="flex: 1;">
+                                <div style="font-weight: 600; font-size: 0.9em;">Extras y Cargos</div>
+                                <div class="sync-status-msg" style="font-size: 0.75em; color: var(--text-secondary);">Pendiente</div>
+                                <div class="progress-mini"><div class="progress-mini-bar" style="width: 0%;"></div></div>
+                            </div>
+                            <button class="btn-action" style="padding: 5px 10px; font-size: 0.7em;" onclick="runSync('charges')">Sync</button>
+                        </div>
+                        
+                        <!-- Module: Reservations -->
+                        <div class="sync-item" id="sync-mod-reservations" style="flex-direction: column; align-items: flex-start; gap: 10px; height: auto;">
+                            <div style="display: flex; width: 100%; gap: 10px; align-items: center;">
+                                <div class="sync-icon"><i data-lucide="check-square"></i></div>
+                                <div style="flex: 1;">
+                                    <div style="font-weight: 600; font-size: 0.9em;">Reservas HQ (Open)</div>
+                                    <div class="sync-status-msg" style="font-size: 0.75em; color: var(--text-secondary);">Pendiente</div>
+                                    <div class="progress-mini" style="margin-top: 5px;"><div class="progress-mini-bar" style="width: 0%;"></div></div>
+                                </div>
+                                <button class="btn-action" style="padding: 5px 10px; font-size: 0.7em;" onclick="runSync('reservations')">Sync</button>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <div id="sync-console" style="background: rgba(0,0,0,0.5); color: #fff; font-family: 'JetBrains Mono', monospace; padding: 15px; border-radius: 12px; font-size: 0.8em; height: 180px; overflow-y: auto; display: none; border: 1px solid var(--border); box-shadow: inset 0 0 10px rgba(0,0,0,0.5);">
+                    </div>
+                </div>
+            </div>
+
+            <!-- HQ RESERVATIONS SECTION -->
+            <div id="section-hq_reservations" style="display: none;">
+                <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 20px;">
+                    <div class="stat-card">
+                        <div class="stat-header">Total Reservas Pendientes <i data-lucide="clipboard-list"></i></div>
+                        <div class="stat-value" id="hq-total-pending">0</div>
+                        <div class="stat-footer">Status: Open</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">Reservas Filtradas <i data-lucide="filter"></i></div>
+                        <div class="stat-value" id="hq-filtered-count">0</div>
+                        <div class="stat-footer">Con filtros aplicados</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">Ingresos Totales <i data-lucide="dollar-sign"></i></div>
+                        <div class="stat-value" id="hq-total-revenue">$0.00</div>
+                        <div class="stat-footer">De reservas mostradas</div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">
+                        Reservas Activas de HQ (Status: Open)
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <span style="font-size: 0.7em; color: var(--text-secondary);">Recogida entre:</span>
+                            <input type="date" id="hq-filter-from" class="btn-action" style="background: rgba(255,255,255,0.05); color: #fff; border: 1px solid var(--border); padding: 5px; width: 130px;">
+                            <input type="date" id="hq-filter-to" class="btn-action" style="background: rgba(255,255,255,0.05); color: #fff; border: 1px solid var(--border); padding: 5px; width: 130px;">
+                            <span style="font-size: 0.7em; color: var(--text-secondary); margin-left: 10px;">Brand:</span>
+                            <select id="hq-filter-brandid" style="background: var(--card-bg); color: var(--text-primary); border: 1px solid var(--border); padding: 5px; width: 140px; border-radius: 4px;">
+                                <option value="">Todos</option>
+                                <option value="1">Miami (1)</option>
+                                <option value="2">Charlotte (2)</option>
+                                <option value="3">Nashville (3)</option>
+                            </select>
+                            <button class="btn-action" onclick="fetchHQReservations()"><i data-lucide="search" style="width: 14px; margin-right: 5px; vertical-align: middle;"></i>Filtrar</button>
+                        </div>
+                    </div>
+                    <div style="overflow-x: auto;">
+                        <table id="hq-reservations-table">
+                            <thead>
+                                <tr>
+                                    <th>Ref #</th>
+                                    <th>Pickup (Fecha/Hora)</th>
+                                    <th>Return (Fecha/Hora)</th>
+                                    <th>Cat ID</th>
+                                    <th>Cliente ID</th>
+                                    <th>Días</th>
+                                    <th>Total</th>
+                                    <th>Sync At</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr><td colspan="8" style="text-align: center; padding: 40px; color: var(--text-secondary);">Consulta las reservas activas sincronizadas de HQ...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- FLEET SECTION -->
+            <div id="section-fleet" style="display: none;">
+                <div class="card" style="margin-bottom: 20px;">
+                    <div class="card-title">
+                        Estadísticas de Flota por Categoría
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <button class="btn-action" style="font-size: 0.8em; background: var(--primary); color: #000;" onclick="setFleetMode('general')">General</button>
+                            <button class="btn-action" style="font-size: 0.8em; background: rgba(255,255,255,0.05);" onclick="setFleetMode('location')">Por Ubicación</button>
+                            <select id="fleet-location-filter" style="display: none; background: var(--card-bg); color: var(--text-primary); border: 1px solid var(--border); padding: 5px; width: 140px; border-radius: 4px; margin-left: 10px;" onchange="fetchFleetStats('location')">
+                                <option value="">Todas</option>
+                                <option value="1">Miami (1)</option>
+                                <option value="2">Charlotte (2)</option>
+                                <option value="3">Nashville (3)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr);">
+                    <div class="stat-card">
+                        <div class="stat-header">Categoría Más Rentada <i data-lucide="trending-up"></i></div>
+                        <div class="stat-value" id="fleet-most-rented">--</div>
+                        <div class="stat-footer" id="fleet-most-rented-count">0 reservas</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">Categoría Menos Rentada <i data-lucide="trending-down"></i></div>
+                        <div class="stat-value" id="fleet-least-rented">--</div>
+                        <div class="stat-footer" id="fleet-least-rented-count">0 reservas</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">Total Reservas <i data-lucide="clipboard-list"></i></div>
+                        <div class="stat-value" id="fleet-total-reservations">0</div>
+                        <div class="stat-footer">En período actual</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">Categorías Activas <i data-lucide="layers"></i></div>
+                        <div class="stat-value" id="fleet-active-categories">0</div>
+                        <div class="stat-footer">Con reservas</div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">
+                        Reservas por Categoría
+                    </div>
+                    <table id="fleet-categories-table">
+                        <thead>
+                            <tr>
+                                <th>Categoría</th>
+                                <th>Cat ID</th>
+                                <th>Reservas</th>
+                                <th>Ingresos</th>
+                                <th>% del Total</th>
+                                <th>Tendencia</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td colspan="6" style="text-align: center; padding: 40px; color: var(--text-secondary);">Cargando estadísticas...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ANALYTICS SECTION -->
+            <div id="section-analytics" style="display: none;">
+                <div class="card" style="margin-bottom: 20px; padding: 15px;">
+                    <div style="display: flex; gap: 15px; align-items: center;">
+                        <span style="font-size: 0.85em; color: var(--text-secondary);">Periodo:</span>
+                        <input type="date" id="analytics-from" class="btn-action" style="background: rgba(255,255,255,0.05); color: #fff; border: 1px solid var(--border); padding: 5px; width: 140px;">
+                        <input type="date" id="analytics-to" class="btn-action" style="background: rgba(255,255,255,0.05); color: #fff; border: 1px solid var(--border); padding: 5px; width: 140px;">
+                        <button class="btn-action" onclick="fetchAnalytics()"><i data-lucide="refresh-cw" style="width: 14px; margin-right: 5px; vertical-align: middle;"></i>Actualizar</button>
+                    </div>
+                </div>
+
+                <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 20px;">
+                    <div class="stat-card">
+                        <div class="stat-header">Total Visitas <i data-lucide="users"></i></div>
+                        <div class="stat-value" id="analytics-total-visits">0</div>
+                        <div class="stat-footer">Todas las páginas</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">Visitantes Únicos <i data-lucide="user-check"></i></div>
+                        <div class="stat-value" id="analytics-unique-visitors">0</div>
+                        <div class="stat-footer">Por IP</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">Duración Promedio <i data-lucide="clock"></i></div>
+                        <div class="stat-value" id="analytics-avg-duration">0s</div>
+                        <div class="stat-footer">Por sesión</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">Países <i data-lucide="globe"></i></div>
+                        <div class="stat-value" id="analytics-countries">0</div>
+                        <div class="stat-footer">Ubicaciones</div>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-bottom: 20px;">
+                    <div class="card-title">Visitas por País</div>
+                    <table id="analytics-countries-table">
+                        <thead>
+                            <tr>
+                                <th>País</th>
+                                <th>Visitas</th>
+                                <th>% del Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td colspan="3" style="text-align: center; padding: 20px;">Cargando datos...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">Visitas por Página</div>
+                    <table id="analytics-pages-table">
+                        <thead>
+                            <tr>
+                                <th>Página</th>
+                                <th>Visitas</th>
+                                <th>% del Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td colspan="3" style="text-align: center; padding: 20px;">Cargando datos...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- OTHER SECTIONS (Placeholder) -->
+            <div id="section-generic" style="display: none; text-align: center; padding: 100px 20px;">
+                <i data-lucide="construction" style="width: 60px; height: 60px; color: var(--warning); margin-bottom: 20px;"></i>
+                <h3>Módulo en Desarrollo</h3>
+                <p style="color: var(--text-secondary); margin-top: 10px;">Este proceso está siendo adaptado para funcionar con la nueva base de datos dinámica.</p>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const API_BASE = 'http://localhost:3000/api/v1';
+        
+        // --- AUTH CHECK ---
+        const token = localStorage.getItem('access_token');
+        const userData = JSON.parse(localStorage.getItem('user') || '{}');
+
+        if (!token) {
+            window.location.href = 'login.html';
+        }
+
+        // Init UI
+        document.getElementById('u-name').textContent = userData.name || 'Admin User';
+        document.getElementById('u-role').textContent = userData.role || 'Administrator';
+        document.getElementById('u-initials').textContent = (userData.name || 'A').charAt(0).toUpperCase();
+
+        // --- TOKEN TIMER ---
+        function updateTokenTimer() {
+            try {
+                const token = localStorage.getItem('access_token');
+                if (!token) {
+                    document.getElementById('token-timer').textContent = 'Expirado';
+                    return;
+                }
+
+                // Decode JWT payload (base64)
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                const expTime = payload.exp * 1000; // Convert to milliseconds
+                const now = Date.now();
+                const remaining = expTime - now;
+
+                if (remaining <= 0) {
+                    document.getElementById('token-timer').textContent = 'Expirado';
+                    document.getElementById('token-timer').style.color = 'var(--error)';
+                    return;
+                }
+
+                // Format as HH:MM:SS
+                const hours = Math.floor(remaining / (1000 * 60 * 60));
+                const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((remaining % (1000 * 60)) / 1000);
+
+                const formatted = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+                document.getElementById('token-timer').textContent = formatted;
+
+                // Change color based on remaining time
+                if (remaining < 5 * 60 * 1000) { // Less than 5 minutes
+                    document.getElementById('token-timer').style.color = 'var(--error)';
+                } else if (remaining < 15 * 60 * 1000) { // Less than 15 minutes
+                    document.getElementById('token-timer').style.color = 'var(--warning)';
+                } else {
+                    document.getElementById('token-timer').style.color = 'var(--primary)';
+                }
+            } catch (err) {
+                console.error('Error decoding token:', err);
+                document.getElementById('token-timer').textContent = 'Error';
+            }
+        }
+
+        // Update timer every second
+        updateTokenTimer();
+        setInterval(updateTokenTimer, 1000);
+
+        // --- DASHBOARD LOGIC ---
+        // --- DASHBOARD LOGIC ---
+        // --- DASHBOARD LOGIC ---
+        async function fetchDashboard() {
+            try {
+                const fromDate = document.getElementById('dash-filter-from').value;
+                const toDate = document.getElementById('dash-filter-to').value;
+
+                // 1. Fetch Fleet Stats from Supabase
+                if (window.HpowerSupabase) {
+                    // Fleet availability (current snapshot, no date filter applies here as it is physical status)
+                    const fleetStats = await window.HpowerSupabase.getFleetStats();
+                    const allVehicles = await window.HpowerSupabase.supabaseQuery('vehicles', 'select=id');
+                    const locationCounts = await window.HpowerSupabase.getAvailableCountByLocation();
+                    
+                    if (fleetStats && Array.isArray(allVehicles)) {
+                        const totalFleet = allVehicles.length;
+                        const available = fleetStats.total;
+                        const occupancy = totalFleet > 0 ? Math.round(((totalFleet - available) / totalFleet) * 100) : 0;
+                        
+                        document.getElementById('stat-fleet').textContent = `${available} / ${totalFleet}`;
+                        document.getElementById('stat-occupancy').textContent = `${occupancy}%`;
+                        document.getElementById('stat-pending-label').textContent = `${totalFleet - available} vehículos ocupados`;
+                        
+                        const totalByLocRes = await window.HpowerSupabase.supabaseQuery('vehicles', 'select=location_id');
+                        const totalsByLoc = {};
+                        totalByLocRes.forEach(v => {
+                            if (v.location_id) totalsByLoc[v.location_id] = (totalsByLoc[v.location_id] || 0) + 1;
+                        });
+
+                        renderLocationBreakdown(locationCounts, totalsByLoc);
+                    }
+
+                    // 1b. Fetch HQ Reservation Stats (NEW)
+                    let resParams = 'select=total_price,pick_up_date,brand_id&status=eq.open';
+                    if (fromDate) resParams += `&pick_up_date=gte.${fromDate}`;
+                    if (toDate) resParams += `&pick_up_date=lte.${toDate}`;
+                    
+                    const hqResData = await window.HpowerSupabase.supabaseQuery('reservations_open', resParams);
+                    if (Array.isArray(hqResData)) {
+                        const totalCount = hqResData.length;
+                        const totalRevenue = hqResData.reduce((acc, curr) => acc + (parseFloat(curr.total_price) || 0), 0);
+                        
+                        document.getElementById('stat-hq-count').textContent = totalCount;
+                        document.getElementById('stat-hq-revenue').textContent = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(totalRevenue);
+
+                        // --- AGGREGATE BY LOCATION ---
+                        const brandMap = { 1: 'Miami (HQ)', 2: 'Charlotte (HQ)', 3: 'Nashville (HQ)' };
+                        const summary = {
+                            1: { count: 0, revenue: 0 },
+                            2: { count: 0, revenue: 0 },
+                            3: { count: 0, revenue: 0 }
+                        };
+
+                        hqResData.forEach(r => {
+                            const bId = r.brand_id ? r.brand_id.toString() : null;
+                            if (bId && summary[bId]) {
+                                summary[bId].count++;
+                                summary[bId].revenue += (parseFloat(r.total_price) || 0);
+                            }
+                        });
+
+                        const tbody = document.querySelector('#hq-summary-table tbody');
+                        tbody.innerHTML = '';
+
+                        Object.entries(summary).forEach(([id, data]) => {
+                            const pct = totalCount > 0 ? ((data.count / totalCount) * 100).toFixed(1) : 0;
+                            const tr = document.createElement('tr');
+                            tr.innerHTML = `
+                                <td style="font-weight: 600;">${brandMap[id]}</td>
+                                <td style="font-weight: 700; color: var(--primary);">${data.count}</td>
+                                <td>${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(data.revenue)}</td>
+                                <td>
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <div style="flex: 1; height: 4px; background: rgba(255,255,255,0.05); border-radius: 2px;">
+                                            <div style="width: ${pct}%; height: 100%; background: var(--primary); box-shadow: 0 0 5px var(--primary-glow);"></div>
+                                        </div>
+                                        <span style="font-size: 0.85em; min-width: 40px;">${pct}%</span>
+                                    </div>
+                                </td>
+                            `;
+                            tbody.appendChild(tr);
+                        });
+                    }
+                }
+
+                // 2. Fetch Operational Stats (Internal Backend)
+
+            } catch (err) {
+                console.error("Dashboard error:", err);
+            }
+        }
+
+        function renderLocationBreakdown(availableCounts, totalCountsMap) {
+            const tbody = document.querySelector('#location-availability-table tbody');
+            tbody.innerHTML = '';
+            
+            // Map IDs to Names
+            const locationNames = {
+                '1': 'Miami, FL',
+                '5': 'Charlotte, NC',
+                '6': 'Nashville, TN'
+            };
+
+            const ids = Object.keys(locationNames);
+            
+            ids.forEach(id => {
+                // availableCounts[id] is { total: X, name: '...' }
+                const availObj = availableCounts[id];
+                const avail = availObj ? availObj.total : 0;
+                const total = totalCountsMap[id] || 0;
+                const occupancy = total > 0 ? Math.round(((total - avail) / total) * 100) : 0;
+                const status = avail > 0 ? 'OPERATIVO' : 'AGOTADO';
+                const statusColor = avail > 5 ? 'var(--success)' : (avail > 0 ? 'var(--warning)' : 'var(--error)');
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="font-weight: 600;">${locationNames[id]}</td>
+                    <td><span style="color: ${statusColor}; font-weight: 700;">${avail}</span></td>
+                    <td>${total}</td>
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div style="flex: 1; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden;">
+                                <div style="width: ${occupancy}%; height: 100%; background: var(--primary);"></div>
+                            </div>
+                            <span style="font-size: 0.85em;">${occupancy}%</span>
+                        </div>
+                    </td>
+                    <td><span class="status-badge" style="background: ${statusColor}; color: #000;">${status}</span></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        async function renderLocationsTable() {
+            if (!window.HpowerSupabase) return;
+            
+            const tbody = document.querySelector('#locations-management-table tbody');
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 20px; color: var(--text-secondary);">Consultando base de Datos de Ubicaciones...</td></tr>';
+            
+            try {
+                const locations = await window.HpowerSupabase.getLocations();
+                const fleetStats = await window.HpowerSupabase.getFleetStats();
+                const totalsByLoc = fleetStats.byLocation || {};
+                
+                tbody.innerHTML = '';
+                locations.forEach(loc => {
+                    const statusClass = loc.active ? 'success' : 'error';
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>#${loc.id}</td>
+                        <td style="font-weight: 600;">${loc.name}</td>
+                        <td style="color: var(--text-secondary);">${loc.city || '—'}, ${loc.state || '—'}</td>
+                        <td style="font-size: 0.85em; color: var(--text-secondary); max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${loc.address || 'Sin dirección'}</td>
+                        <td style="text-align: center;">${totalsByLoc[loc.id] || 0}</td>
+                        <td><span class="status-badge" style="background: rgba(${loc.active ? '16, 185, 129' : '239, 68, 68'}, 0.1); color: ${loc.active ? 'var(--success)' : 'var(--error)'}; border: 1px solid rgba(${loc.active ? '16, 185, 129' : '239, 68, 68'}, 0.2);">${loc.active ? 'ACTIVO' : 'INACTIVO'}</span></td>
+                        <td>
+                            <div style="display: flex; gap: 8px;">
+                                <button class="btn-action" style="padding: 4px 8px; font-size: 0.8em; background: rgba(255,255,255,0.05); color: #fff; border: 1px solid var(--border);"><i data-lucide="edit-2" style="width: 14px;"></i></button>
+                                <button class="btn-action" style="padding: 4px 8px; font-size: 0.8em; background: rgba(239,68,68,0.05); color: var(--error); border: 1px solid rgba(239,68,68,0.2);"><i data-lucide="trash-2" style="width: 14px;"></i></button>
+                            </div>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+                lucide.createIcons();
+            } catch (err) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--error);">Error al cargar ubicaciones.</td></tr>';
+            }
+        }
+
+        function getStatusColor(status) {
+            const colors = {
+                'PENDING': '#f59e0b',
+                'CONFIRMED': '#10b981',
+                'CANCELLED': '#ef4444',
+                'COMPLETED': '#3b82f6'
+            };
+            return colors[status?.toUpperCase()] || '#94a3b8';
+        }
+
+        // --- NAVIGATION ---
+        // --- NAVIGATION (Globally accessible) ---
+        window.showSection = function(sectionId) {
+            document.querySelectorAll('.nav-item').forEach(btn => btn.classList.remove('active'));
+            const navItems = document.querySelectorAll('.nav-item');
+            navItems.forEach(btn => {
+                const onclick = btn.getAttribute('onclick');
+                if (onclick && onclick.includes(`'${sectionId}'`)) btn.classList.add('active');
+            });
+
+            const sections = ['dashboard', 'sync', 'locations', 'hq_reservations', 'fleet', 'analytics', 'generic', 'email_config'];
+            sections.forEach(s => {
+                const el = document.getElementById(`section-${s}`);
+                if (el) el.style.display = 'none';
+            });
+
+            if (sectionId === 'dashboard') {
+                document.getElementById('section-dashboard').style.display = 'block';
+                document.getElementById('page-title').textContent = 'Dashboard Operativo';
+                fetchDashboard();
+            } else if (sectionId === 'sync') {
+                document.getElementById('section-sync').style.display = 'block';
+                document.getElementById('page-title').textContent = 'Sincronización Maestra (HQ)';
+            } else if (sectionId === 'locations') {
+                document.getElementById('section-locations').style.display = 'block';
+                document.getElementById('page-title').textContent = 'Gestión de Ubicaciones';
+                renderLocationsTable();
+            } else if (sectionId === 'email_config') {
+                document.getElementById('section-email_config').style.display = 'block';
+                document.getElementById('page-title').textContent = 'Configuración de Email';
+                loadEmailConfig();
+            } else if (sectionId === 'fleet') {
+                document.getElementById('section-fleet').style.display = 'block';
+                document.getElementById('page-title').textContent = 'Flota / Vehículos';
+                fetchFleetStats('general');
+            } else if (sectionId === 'hq_reservations') {
+                document.getElementById('section-hq_reservations').style.display = 'block';
+                document.getElementById('page-title').textContent = 'Reservas Pendientes (HQ)';
+                fetchHQReservations();
+            } else if (sectionId === 'analytics') {
+                document.getElementById('section-analytics').style.display = 'block';
+                document.getElementById('page-title').textContent = 'Analytics de Visitas';
+                fetchAnalytics();
+            } else {
+                document.getElementById('section-generic').style.display = 'block';
+                document.getElementById('page-title').textContent = sectionId.charAt(0).toUpperCase() + sectionId.slice(1);
+            }
+            lucide.createIcons();
+        };
+
+        window.logout = function() {
+            localStorage.clear();
+            window.location.href = 'login.html';
+        };
+
+        // Funciones de sonido para notificaciones
+        function playSonarSound() {
+            console.log('🔊 playSonarSound() called');
+            try {
+                // Crear sonido sonar usando Web Audio API
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                // Configurar sonido sonar (frecuencia descendente)
+                oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+                oscillator.frequency.exponentialRampToValueAtTime(400, audioContext.currentTime + 0.3);
+                
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+                
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.3);
+                console.log('✅ Sonar sound played successfully');
+            } catch (e) {
+                console.log('❌ Error in playSonarSound():', e);
+            }
+        }
+
+        function playNotificationSound() {
+            console.log('🔊 playNotificationSound() called');
+            try {
+                // Crear sonido de notificación exitosa
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                // Configurar sonido de notificación (frecuencia ascendente)
+                oscillator.frequency.setValueAtTime(600, audioContext.currentTime);
+                oscillator.frequency.exponentialRampToValueAtTime(1200, audioContext.currentTime + 0.2);
+                
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+                
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.2);
+                console.log('✅ Notification sound played successfully');
+            } catch (e) {
+                console.log('❌ Error in playNotificationSound():', e);
+            }
+        }
+
+        // Test functions on page load
+        console.log('🔍 Testing sound functions...');
+        console.log('playSonarSound exists:', typeof playSonarSound);
+        console.log('playNotificationSound exists:', typeof playNotificationSound);
+
+        window.runSync = async function(type) {
+            const cardId = `sync-mod-${type}`;
+            const card = document.getElementById(cardId);
+            const statusMsg = card?.querySelector('.sync-status-msg');
+            const progressBar = card?.querySelector('.progress-mini-bar');
+
+            const consoleBox = document.getElementById('sync-console');
+            consoleBox.style.display = 'block';
+            
+            // Reproducir sonido sonar al inicio
+            try {
+                playSonarSound();
+                console.log('🔊 Sonar sound triggered for:', type);
+            } catch (e) {
+                console.log('❌ Error playing sonar sound:', e);
+            }
+            
+            consoleBox.innerHTML += `<span style="color: var(--primary); font-weight: 700;">🔔 **EJECUTANDO EL PROCESO DE SINCRONIZACIÓN: ${type.toUpperCase()}**</span><br>`;
+            consoleBox.innerHTML += `<span style="color: var(--text-secondary);">[${new Date().toLocaleTimeString()}]</span> Iniciando proceso de sincronización...<br>`;
+
+            if (card) {
+                card.classList.remove('success', 'error');
+                card.classList.add('active');
+                if (statusMsg) {
+                    statusMsg.textContent = 'Sincronizando...';
+                    statusMsg.style.color = 'var(--text-secondary)';
+                }
+                if (progressBar) {
+                    progressBar.style.width = '40%';
+                    progressBar.style.background = 'var(--primary)';
+                }
+            }
+
+            try {
+                if (!token) {
+                    throw new Error("Sesión no encontrada (Token faltante). Por favor, inicia sesión de nuevo.");
+                }
+
+                const res = await fetch(`http://localhost:3000/api/sync/${type}`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Accept': 'application/json'
+                    }
+                });
+
+                // Si no es un 200 OK, intentamos leer el JSON de error
+                let data;
+                try {
+                    data = await res.json();
+                } catch (e) {
+                    throw new Error(`El servidor respondió con un error (Código ${res.status}). No se pudo leer el detalle.`);
+                }
+                
+                if (res.status === 401 || res.status === 403) {
+                    const errorDetail = data.message || "Sesión expirada";
+                    consoleBox.innerHTML += `<span style="color: var(--error); font-weight: 700;">> ACCESO DENEGADO:</span> ${errorDetail}<br>`;
+                    consoleBox.innerHTML += `<span style="color: var(--warning);">⚠️ Redirigiendo al login en 3 segundos...</span><br>`;
+                    setTimeout(() => {
+                        localStorage.removeItem('token');
+                        window.location.href = 'login.html';
+                    }, 3000);
+                    throw new Error(errorDetail);
+                }
+
+                if (res.ok && data.success) {
+                    // Mostrar logs de la respuesta con animación y sonidos
+                    if (data.logs && Array.isArray(data.logs)) {
+                        let logIndex = 0;
+                        const processLog = () => {
+                            if (logIndex >= data.logs.length) return;
+                            
+                            const log = data.logs[logIndex];
+                            logIndex++;
+                            
+                            // Reproducir sonido sonar al inicio de proceso
+                            if (log.message && log.message.includes('Iniciando guardado')) {
+                                try {
+                                    playSonarSound();
+                                    console.log('🔊 Sonar sound for process start');
+                                } catch (e) {
+                                    console.log('❌ Error playing sonar:', e);
+                                }
+                            }
+                            
+                            // Mostrar el log con efecto de aparición
+                            let logHtml = '';
+                            if (log.type === 'info') {
+                                logHtml = `<span style="color: var(--text-secondary);">> ${log.message}</span><br>`;
+                            } else if (log.type === 'success') {
+                                logHtml = `<span style="color: var(--success);">> ${log.message}</span><br>`;
+                            } else if (log.type === 'error') {
+                                logHtml = `<span style="color: var(--error);">> ${log.message}</span><br>`;
+                            } else if (log.type === 'complete') {
+                                logHtml = `<span style="color: var(--success); font-weight: 700;">> ${log.message}</span><br>`;
+                                // Reproducir sonido de notificación al completar módulo
+                                try {
+                                    playNotificationSound();
+                                    console.log('🔊 Notification sound for module complete');
+                                } catch (e) {
+                                    console.log('❌ Error playing notification:', e);
+                                }
+                            }
+                            
+                            consoleBox.innerHTML += logHtml;
+                            consoleBox.scrollTop = consoleBox.scrollHeight;
+                            
+                            // Actualizar barra de progreso dinámicamente
+                            if (progressBar) {
+                                const progress = Math.min(90, (logIndex / data.logs.length) * 90);
+                                progressBar.style.width = `${progress}%`;
+                            }
+                            
+                            // Procesar siguiente log con pequeño delay
+                            setTimeout(processLog, 100);
+                        };
+                        
+                        // Iniciar procesamiento de logs
+                        setTimeout(processLog, 200);
+                    }
+                    
+                    // Mensaje final
+                    setTimeout(() => {
+                        consoleBox.innerHTML += `<span style="color: var(--success); font-weight: 700;">✅ **PROCESO COMPLETADO EXITOSAMENTE**</span><br>`;
+                        consoleBox.innerHTML += `<span style="color: var(--success);">[${new Date().toLocaleTimeString()}]</span> Sincronización de ${type.toUpperCase()} finalizada.<br>`;
+                        
+                        // Sonido final de completado
+                        try {
+                            playNotificationSound();
+                            console.log('🔊 Final notification sound');
+                        } catch (e) {
+                            console.log('❌ Error playing final sound:', e);
+                        }
+                        
+                        if (card) {
+                            card.classList.remove('active');
+                            card.classList.add('success');
+                            if (statusMsg) statusMsg.textContent = 'Completado OK';
+                            if (progressBar) progressBar.style.width = '100%';
+                        }
+                    }, data.logs ? data.logs.length * 100 + 500 : 1000);
+                    
+                    return true;
+                } else {
+                    // Aquí capturamos 'message' o 'error' indistintamente
+                    const errorDetail = data.message || data.error || `Error en el servidor (${res.status})`;
+                    throw new Error(errorDetail);
+                }
+            } catch (err) {
+                consoleBox.innerHTML += `<span style="color: var(--error); font-weight: 700;">> ERROR:</span> ${err.message}<br>`;
+                
+                // Si el error es de conexión (backend apagado)
+                if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
+                    consoleBox.innerHTML += `<span style="color: var(--warning); font-size: 0.85em;">💡 Tip: Verifica que el servidor backend esté corriendo en el puerto 3000.</span><br>`;
+                }
+
+                if (err.message.includes('Token inválido') || err.message.includes('No tienes permiso')) {
+                    consoleBox.innerHTML += `<span style="color: var(--primary); font-size: 0.85em;">💡 Tip: Por favor cierra sesión y vuelve a entrar para renovar tu acceso.</span><br>`;
+                }
+
+                if (card) {
+                    card.classList.remove('active');
+                    card.classList.add('error');
+                    if (statusMsg) {
+                        statusMsg.textContent = err.message.length > 20 ? 'Error de conexión' : err.message;
+                        statusMsg.style.color = 'var(--error)';
+                    }
+                    if (progressBar) {
+                        progressBar.style.width = '100%';
+                        progressBar.style.background = 'var(--error)';
+                    }
+                }
+                return false;
+            } finally {
+                consoleBox.scrollTop = consoleBox.scrollHeight;
+            }
+        };
+
+        window.runSequentialSync = async function() {
+            const consoleBox = document.getElementById('sync-console');
+            const executeBtn = document.getElementById('btn-execute-all');
+
+            consoleBox.style.display = 'block';
+            consoleBox.innerHTML = `> <span style="color: var(--primary); font-weight: 700;">🔔 **EJECUTANDO EL PROCESO DE SINCRONIZACIÓN COMPLETA**</span><br>`;
+            consoleBox.innerHTML += `> <span style="color: var(--text-secondary);">[${new Date().toLocaleTimeString()}]</span> Iniciando sincronización maestra de todos los módulos...<br>`;
+
+            if (executeBtn) {
+                executeBtn.classList.add('btn-pulse');
+                executeBtn.disabled = true;
+                executeBtn.style.opacity = '0.7';
+            }
+
+            // 1. ESTABLECER CONEXIÓN SSE PARA LOGS EN TIEMPO REAL
+            consoleBox.innerHTML += `> <span style="color: var(--text-secondary);">Estableciendo canal de comunicación en tiempo real (SSE)...</span><br>`;
+            
+            const sseUrl = `http://localhost:3000/api/sync/stream?token=${token}`;
+            const eventSource = new EventSource(sseUrl);
+
+            eventSource.onmessage = (event) => {
+                try {
+                    const log = JSON.parse(event.data);
+                    
+                    if (log.type === 'connected') {
+                        consoleBox.innerHTML += `> <span style="color: var(--success);">✅ Canal SSE conectado. Iniciando orquestación...</span><br>`;
+                        // Una vez conectado el SSE, disparamos el proceso en el backend
+                        triggerSyncProcess();
+                    } else if (log.type === 'heartbeat') {
+                        // Ignorar heartbeats en la consola
+                        return;
+                    } else {
+                        // Procesar log de sincronización
+                        let logHtml = '';
+                        const timestamp = `<span style="color: var(--text-secondary); font-size: 0.8em;">[${new Date().toLocaleTimeString()}]</span> `;
+                        
+                        if (log.type === 'info') {
+                            logHtml = `${timestamp}<span style="color: var(--text-secondary);">> ${log.message}</span><br>`;
+                        } else if (log.type === 'success') {
+                            logHtml = `${timestamp}<span style="color: var(--success);">> ${log.message}</span><br>`;
+                        } else if (log.type === 'error') {
+                            logHtml = `${timestamp}<span style="color: var(--error);">> ${log.message}</span><br>`;
+                        } else if (log.type === 'complete') {
+                            logHtml = `${timestamp}<span style="color: var(--primary); font-weight: 700;">> ${log.message}</span><br>`;
+                            try { playNotificationSound(); } catch(e) {}
+                        }
+
+                        // Detectar sonidos por contenido del mensaje si no es 'complete'
+                        if (log.message && (log.message.includes('CONSULTANDO') || log.message.includes('Iniciando guardado'))) {
+                            try { playSonarSound(); } catch(e) {}
+                        }
+
+                        // Usar insertAdjacentHTML en lugar de innerHTML+= para mayor rendimiento (evita re-parsear todo el DOM)
+                        consoleBox.insertAdjacentHTML('beforeend', logHtml);
+                        consoleBox.scrollTop = consoleBox.scrollHeight;
+
+                        // Actualizar barras de progreso si el mensaje indica un módulo
+                        updateModuleUIFromLog(log);
+                    }
+                } catch (err) {
+                    console.error("Error procesando evento SSE:", err);
+                }
+            };
+
+            eventSource.onerror = (err) => {
+                console.error("SSE Error:", err);
+                consoleBox.innerHTML += `<span style="color: var(--error); font-weight: 700;">⚠️ Error en el canal de comunicación en vivo.</span><br>`;
+                eventSource.close();
+            };
+
+            async function triggerSyncProcess() {
+                try {
+                    const res = await fetch('http://localhost:3000/api/sync/all', {
+                        method: 'GET',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+
+                    const data = await res.json();
+                    
+                    if (data.success) {
+                        consoleBox.innerHTML += `<br><span style="color: var(--success); font-weight: 700;">✅ **SINCRONIZACIÓN TOTAL FINALIZADA EXITOSAMENTE**</span><br>`;
+                    } else {
+                        consoleBox.innerHTML += `<br><span style="color: var(--error); font-weight: 700;">❌ ERROR FINAL: ${data.error || 'Desconocido'}</span><br>`;
+                    }
+                } catch (err) {
+                    consoleBox.innerHTML += `<br><span style="color: var(--error); font-weight: 700;">❌ FALLO DE CONEXIÓN: ${err.message}</span><br>`;
+                } finally {
+                    eventSource.close();
+                    if (executeBtn) {
+                        executeBtn.classList.remove('btn-pulse');
+                        executeBtn.disabled = false;
+                        executeBtn.style.opacity = '1';
+                    }
+                }
+            }
+
+            function updateModuleUIFromLog(log) {
+                const msg = log.message || '';
+                let type = '';
+                if (msg.includes('LOCATIONS')) type = 'locations';
+                else if (msg.includes('CATEGORIES')) type = 'categories';
+                else if (msg.includes('VEHICLES')) type = 'vehicles';
+                else if (msg.includes('RATES')) type = 'rates';
+                else if (msg.includes('SEASONS')) type = 'seasons';
+                else if (msg.includes('CHARGES')) type = 'charges';
+                else if (msg.includes('RESERVATIONS')) type = 'reservations';
+
+                if (type) {
+                    const card = document.getElementById(`sync-mod-${type}`);
+                    if (card) {
+                        if (msg.includes('CONSULTANDO') || msg.includes('Iniciando guardado')) {
+                            card.classList.add('active');
+                            card.classList.remove('success', 'error');
+                            const status = card.querySelector('.sync-status-msg');
+                            if (status) status.textContent = 'Sincronizando...';
+                        } else if (msg.includes('finalizado')) {
+                            card.classList.remove('active');
+                            card.classList.add('success');
+                            const status = card.querySelector('.sync-status-msg');
+                            if (status) status.textContent = 'Completado OK';
+                            const bar = card.querySelector('.progress-mini-bar');
+                            if (bar) bar.style.width = '100%';
+                        }
+                    }
+                }
+            }
+        };
+
+
+        window.logout = function() {
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('refresh_token');
+            localStorage.removeItem('user');
+            window.location.href = 'login.html';
+        };
+
+        // --- EMAIL CONFIG FUNCTIONS ---
+        window.loadEmailConfig = async function() {
+            try {
+                const token = localStorage.getItem('access_token');
+                const res = await fetch('http://localhost:3000/api/email/config', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                
+                if (data.success && data.config) {
+                    document.getElementById('email-smtp-host').value = data.config.smtp_host || 'smtp.gmail.com';
+                    document.getElementById('email-smtp-port').value = data.config.smtp_port || 587;
+                    document.getElementById('email-smtp-user').value = data.config.smtp_user || '';
+                    document.getElementById('email-from').value = data.config.email_from || '';
+                    document.getElementById('email-to').value = data.config.email_to || 'info@hpower.com';
+                    document.getElementById('email-active').checked = data.config.active !== false;
+                }
+            } catch (err) {
+                console.error('Error cargando configuración de email:', err);
+            }
+        };
+
+        window.saveEmailConfig = async function() {
+            try {
+                const token = localStorage.getItem('access_token');
+                const config = {
+                    smtp_host: document.getElementById('email-smtp-host').value,
+                    smtp_port: parseInt(document.getElementById('email-smtp-port').value),
+                    smtp_user: document.getElementById('email-smtp-user').value,
+                    smtp_pass: document.getElementById('email-smtp-pass').value,
+                    email_from: document.getElementById('email-from').value,
+                    email_to: document.getElementById('email-to').value,
+                    active: document.getElementById('email-active').checked
+                };
+                
+                const res = await fetch('http://localhost:3000/api/email/config', {
+                    method: 'POST',
+                    headers: { 
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(config)
+                });
+                
+                const data = await res.json();
+                
+                if (data.success) {
+                    alert('Configuración de email guardada correctamente');
+                    document.getElementById('email-smtp-pass').value = ''; // Limpiar contraseña por seguridad
+                } else {
+                    alert('Error: ' + (data.error || 'Error desconocido'));
+                }
+            } catch (err) {
+                console.error('Error guardando configuración de email:', err);
+                alert('Error al guardar configuración. Verifica que el backend esté corriendo.');
+            }
+        };
+
+        window.testEmailConfig = async function() {
+            try {
+                const token = localStorage.getItem('access_token');
+                const res = await fetch('http://localhost:3000/api/email/test', {
+                    method: 'POST',
+                    headers: { 
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await res.json();
+                
+                if (data.success) {
+                    alert('Email de prueba enviado correctamente. Revisa tu bandeja de entrada.');
+                } else {
+                    alert('Error: ' + (data.error || 'Error desconocido'));
+                }
+            } catch (err) {
+                console.error('Error probando email:', err);
+                alert('Error al enviar email de prueba. Verifica la configuración.');
+            }
+        };
+
+        window.confirmClearDatabase = async function() {
+            if (!confirm("⚠️ ADVERTENCIA: Esto borrará todos los registros de vehículos, categorías, tarifas y ubicaciones en Supabase. ¿Estás seguro?")) return;
+            
+            const consoleBox = document.getElementById('sync-console');
+            consoleBox.style.display = 'block';
+            consoleBox.innerHTML = `> Iniciando limpieza de base de datos...<br>`;
+            
+            try {
+                if (!token) throw new Error("Sesión no válida");
+
+                const res = await fetch(`http://localhost:3000/api/sync/clear`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                
+                if (res.status === 401) {
+                    window.logout();
+                    return;
+                }
+
+                if (data.success) {
+                    consoleBox.innerHTML += `> ✅ Base de datos limpiada exitosamente<br>`;
+                    consoleBox.innerHTML += `> Tablas vaciadas: ${data.tables.join(', ')}<br>`;
+                    consoleBox.innerHTML += `> Registros eliminados: ${data.totalDeleted}<br>`;
+                    
+                    // Clear cache to show correct zero values
+                    if (window.HpowerSupabase && window.HpowerSupabase.cacheClearAll) {
+                        window.HpowerSupabase.cacheClearAll();
+                        consoleBox.innerHTML += `> ✅ Caché local limpiado<br>`;
+                    }
+                    
+                    consoleBox.innerHTML += `> <span style="color: var(--success);">Limpieza completada</span><br>`;
+                    
+                    // Refresh dashboard after clearing
+                    setTimeout(() => fetchDashboard(), 2000);
+                } else {
+                    consoleBox.innerHTML += `<span style="color: var(--error);">> ERROR: ${err.message}</span><br>`;
+                }
+            } catch (err) {
+                consoleBox.innerHTML += `<span style="color: var(--error);">> ERROR: ${err.message}</span><br>`;
+            }
+        };
+
+        // --- INITIALIZATION ---
+        async function initApp() {
+            console.log("Initializing Admin Panel...");
+            lucide.createIcons();
+            
+            let attempts = 0;
+            const maxAttempts = 50; // 5 seconds
+            
+            const checkSupabase = setInterval(() => {
+                attempts++;
+                if (window.HpowerSupabase) {
+                    clearInterval(checkSupabase);
+                    console.log("Supabase Client Ready!");
+                    fetchDashboard();
+                } else if (attempts >= maxAttempts) {
+                    clearInterval(checkSupabase);
+                    console.error("Supabase Client failed to load.");
+                    document.getElementById('stat-fleet').textContent = "ERROR";
+                    document.getElementById('stat-fleet').style.color = "var(--error)";
+                }
+            }, 100);
+        }
+
+        let currentFleetMode = 'general';
+
+        window.setFleetMode = function(mode) {
+            currentFleetMode = mode;
+            const locationSelect = document.getElementById('fleet-location-filter');
+            const buttons = document.querySelectorAll('#section-fleet .card-title .btn-action');
+            
+            if (mode === 'location') {
+                locationSelect.style.display = 'block';
+                buttons[0].style.background = 'rgba(255,255,255,0.05)';
+                buttons[1].style.background = 'var(--primary)';
+                buttons[1].style.color = '#000';
+            } else {
+                locationSelect.style.display = 'none';
+                buttons[0].style.background = 'var(--primary)';
+                buttons[0].style.color = '#000';
+                buttons[1].style.background = 'rgba(255,255,255,0.05)';
+                buttons[1].style.color = '#fff';
+            }
+            
+            fetchFleetStats(mode);
+        };
+
+        async function fetchFleetStats(mode = 'general') {
+            if (!window.HpowerSupabase) return;
+            
+            const tbody = document.querySelector('#fleet-categories-table tbody');
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px;"><i data-lucide="loader-2" class="spin"></i> Cargando estadísticas...</td></tr>';
+            lucide.createIcons();
+            
+            try {
+                // Use backend API instead of direct Supabase query (like HQ reservations section)
+                let url = `${API_BASE}/reservations/hq/active`;
+                
+                const res = await fetch(url, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                
+                if (!data.success || !data.data || data.data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px;">No hay reservas para calcular estadísticas.</td></tr>';
+                    return;
+                }
+                
+                let reservations = data.data;
+                
+                // Filter by location if in location mode
+                if (mode === 'location') {
+                    const locationId = document.getElementById('fleet-location-filter').value;
+                    if (locationId) {
+                        const locationIdNum = parseInt(locationId);
+                        reservations = reservations.filter(r => r.brand_id == locationIdNum);
+                    }
+                }
+                
+                // Fetch categories from Supabase to get names and hq_class_ids mapping
+                const categories = await window.HpowerSupabase.supabaseQuery('vehicle_categories', 'select=id,name,hq_class_ids');
+                const classToCategoryMap = {};
+                categories.forEach(cat => {
+                    if (cat.hq_class_ids) {
+                        // hq_class_ids is a JSON array, parse it
+                        const hqClassIds = Array.isArray(cat.hq_class_ids) ? cat.hq_class_ids : JSON.parse(cat.hq_class_ids || '[]');
+                        hqClassIds.forEach(classId => {
+                            classToCategoryMap[classId] = cat.name;
+                        });
+                    }
+                });
+                
+                // Count by category (using vehicle_class_id mapped to category name)
+                const categoryCounts = {};
+                const categoryRevenue = {};
+                const categoryBrands = {};
+                reservations.forEach(r => {
+                    const classId = r.vehicle_class_id;
+                    if (classId && classToCategoryMap[classId]) {
+                        const catName = classToCategoryMap[classId];
+                        categoryCounts[catName] = (categoryCounts[catName] || 0) + 1;
+                        categoryRevenue[catName] = (categoryRevenue[catName] || 0) + (parseFloat(r.total_price) || 0);
+                        // Track unique brands for this category
+                        if (r.brand_id) {
+                            if (!categoryBrands[catName]) categoryBrands[catName] = new Set();
+                            categoryBrands[catName].add(r.brand_id);
+                        }
+                    }
+                });
+                
+                const totalReservations = reservations.length;
+                const activeCategories = Object.keys(categoryCounts).length;
+                
+                // Find most and least rented
+                let mostRented = { id: null, count: 0 };
+                let leastRented = { id: null, count: Infinity };
+                
+                Object.entries(categoryCounts).forEach(([id, count]) => {
+                    if (count > mostRented.count) mostRented = { id, count };
+                    if (count < leastRented.count) leastRented = { id, count };
+                });
+                
+                // Update stat cards
+                document.getElementById('fleet-total-reservations').textContent = totalReservations;
+                document.getElementById('fleet-active-categories').textContent = activeCategories;
+                document.getElementById('fleet-most-rented').textContent = mostRented.id || '--';
+                document.getElementById('fleet-most-rented-count').textContent = `${mostRented.count} reservas`;
+                document.getElementById('fleet-least-rented').textContent = leastRented.id || '--';
+                document.getElementById('fleet-least-rented-count').textContent = `${leastRented.count} reservas`;
+                
+                // Render table
+                tbody.innerHTML = '';
+                const sortedCategories = Object.entries(categoryCounts).sort((a, b) => b[1] - a[1]);
+                
+                sortedCategories.forEach(([catName, count]) => {
+                    const pct = ((count / totalReservations) * 100).toFixed(1);
+                    const revenue = categoryRevenue[catName] || 0;
+                    const brands = categoryBrands[catName] ? Array.from(categoryBrands[catName]).sort((a, b) => a - b).join(', ') : '--';
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td style="font-weight: 600;">${catName}</td>
+                        <td style="color: var(--primary);">${brands}</td>
+                        <td style="font-weight: 700;">${count}</td>
+                        <td style="font-weight: 600; color: var(--success);">${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(revenue)}</td>
+                        <td>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <div style="flex: 1; height: 4px; background: rgba(255,255,255,0.05); border-radius: 2px;">
+                                    <div style="width: ${pct}%; height: 100%; background: var(--primary);"></div>
+                                </div>
+                                <span style="font-size: 0.85em;">${pct}%</span>
+                            </div>
+                        </td>
+                        <td><i data-lucide="trending-up" style="width: 16px; color: var(--success);"></i></td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+                
+                lucide.createIcons();
+            } catch (err) {
+                tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--error);">Error: ${err.message}</td></tr>`;
+            }
+        }
+
+        async function fetchHQReservations() {
+            const tbody = document.querySelector('#hq-reservations-table tbody');
+            const from = document.getElementById('hq-filter-from').value;
+            const to = document.getElementById('hq-filter-to').value;
+            const brandId = document.getElementById('hq-filter-brandid').value;
+            
+            tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 20px;">Obteniendo registros...</td></tr>';
+            
+            try {
+                let url = `${API_BASE}/reservations/hq/active`;
+                const params = new URLSearchParams();
+                if (from) params.append('from', from);
+                if (to) params.append('to', to);
+                if (params.toString()) url += `?${params.toString()}`;
+                
+                const res = await fetch(url, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                
+                if (data.success && data.data.length > 0) {
+                    // Update total pending count
+                    document.getElementById('hq-total-pending').textContent = data.data.length;
+                    
+                    // Filter by Brand ID if provided
+                    let filteredData = data.data;
+                    if (brandId) {
+                        const brandIdNum = parseInt(brandId);
+                        filteredData = data.data.filter(r => r.brand_id == brandIdNum);
+                    }
+                    
+                    // Update filtered count
+                    document.getElementById('hq-filtered-count').textContent = filteredData.length;
+                    
+                    // Calculate total revenue from filtered data
+                    const totalRevenue = filteredData.reduce((acc, curr) => acc + (parseFloat(curr.total_price) || 0), 0);
+                    document.getElementById('hq-total-revenue').textContent = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(totalRevenue);
+                    
+                    if (filteredData.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 20px;">No se encontraron reservas con este Brand ID.</td></tr>';
+                        return;
+                    }
+                    
+                    tbody.innerHTML = '';
+                    const brandMap = { 1: 'Miami', 2: 'Charlotte', 3: 'Nashville' };
+                    
+                    filteredData.forEach(r => {
+                        const tr = document.createElement('tr');
+                        const brandName = brandMap[r.brand_id] || `Brand ${r.brand_id}`;
+                        tr.innerHTML = `
+                            <td style="font-weight: 600; color: var(--primary);">#${r.prefixed_id || r.id}</td>
+                            <td>${new Date(r.pick_up_date).toLocaleString()}</td>
+                            <td>${new Date(r.return_date).toLocaleString()}</td>
+                            <td><span class="status-badge" style="background: rgba(var(--primary-rgb), 0.1); color: var(--primary); border: 1px solid rgba(var(--primary-rgb), 0.2);">${brandName}</span></td>
+                            <td><span class="status-badge" style="background: rgba(255,255,255,0.05); color: #fff;">Class ${r.vehicle_class_id}</span></td>
+                            <td>ID: ${r.customer_id}</td>
+                            <td>${r.total_days} d</td>
+                            <td style="font-weight: 700;">$${parseFloat(r.total_price).toFixed(2)}</td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 20px;">No se encontraron reservas abiertas para este periodo.</td></tr>';
+                }
+            } catch (err) {
+                tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--error);">Error: ${err.message}</td></tr>`;
+            }
+        }
+
+        async function fetchAnalytics() {
+            const from = document.getElementById('analytics-from').value;
+            const to = document.getElementById('analytics-to').value;
+            
+            try {
+                let url = `${API_BASE}/analytics/summary`;
+                const params = new URLSearchParams();
+                if (from) params.append('from', from);
+                if (to) params.append('to', to);
+                if (params.toString()) url += `?${params.toString()}`;
+                
+                const res = await fetch(url, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                
+                if (data.success && data.summary) {
+                    const { totalVisits, uniqueVisitors, avgDuration, visitsByCountry, visitsByPage } = data.summary;
+                    
+                    // Update stat cards
+                    document.getElementById('analytics-total-visits').textContent = totalVisits;
+                    document.getElementById('analytics-unique-visitors').textContent = uniqueVisitors;
+                    document.getElementById('analytics-avg-duration').textContent = `${Math.floor(avgDuration / 60)}m ${avgDuration % 60}s`;
+                    document.getElementById('analytics-countries').textContent = Object.keys(visitsByCountry).length;
+                    
+                    // Render countries table
+                    const countriesTbody = document.querySelector('#analytics-countries-table tbody');
+                    countriesTbody.innerHTML = '';
+                    const sortedCountries = Object.entries(visitsByCountry).sort((a, b) => b[1] - a[1]);
+                    sortedCountries.forEach(([country, count]) => {
+                        const pct = ((count / totalVisits) * 100).toFixed(1);
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td style="font-weight: 600;">${country || 'Desconocido'}</td>
+                            <td style="font-weight: 700;">${count}</td>
+                            <td>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <div style="flex: 1; height: 4px; background: rgba(255,255,255,0.05); border-radius: 2px;">
+                                        <div style="width: ${pct}%; height: 100%; background: var(--primary);"></div>
+                                    </div>
+                                    <span style="font-size: 0.85em;">${pct}%</span>
+                                </div>
+                            </td>
+                        `;
+                        countriesTbody.appendChild(tr);
+                    });
+                    
+                    // Render pages table
+                    const pagesTbody = document.querySelector('#analytics-pages-table tbody');
+                    pagesTbody.innerHTML = '';
+                    const sortedPages = Object.entries(visitsByPage).sort((a, b) => b[1] - a[1]);
+                    sortedPages.forEach(([page, count]) => {
+                        const pct = ((count / totalVisits) * 100).toFixed(1);
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td style="font-weight: 600;">${page}</td>
+                            <td style="font-weight: 700;">${count}</td>
+                            <td>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <div style="flex: 1; height: 4px; background: rgba(255,255,255,0.05); border-radius: 2px;">
+                                        <div style="width: ${pct}%; height: 100%; background: var(--primary);"></div>
+                                    </div>
+                                    <span style="font-size: 0.85em;">${pct}%</span>
+                                </div>
+                            </td>
+                        `;
+                        pagesTbody.appendChild(tr);
+                    });
+                    
+                    lucide.createIcons();
+                }
+            } catch (err) {
+                console.error('Error fetching analytics:', err);
+            }
+        }
+
+        // Run initialization
+        initApp();
+    </script>
+</body>
+</html>

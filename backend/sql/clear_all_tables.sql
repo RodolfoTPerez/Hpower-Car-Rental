@@ -1,0 +1,4 @@
+-- NOTA: Este archivo no se usa actualmente
+-- El editor SQL de Supabase tiene problemas con CREATE FUNCTION
+-- Se usa DELETE desde el backend en su lugar (backend/src/controllers/syncController.js)
+-- Tablas limpiadas: reservations, reservations_open, vehicle_rates, vehicles, notifications, charges, seasons, vehicle_categories, locations

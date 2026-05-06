@@ -1,0 +1,17 @@
+{
+  "name": "hpower-web-sync",
+  "version": "1.0.0",
+  "description": "Hpower Car Rental - HQ to Supabase Sync",
+  "scripts": {
+    "sync": "node sync-hq.js",
+    "sync:vehicles": "node sync-hq.js vehicles",
+    "sync:locations": "node sync-hq.js locations",
+    "sync:categories": "node sync-hq.js categories",
+    "sync:rates": "node sync-hq.js rates",
+    "sync:all": "node sync-hq.js all"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.8",
+    "axios": "^1.15.0"
+  }
+}

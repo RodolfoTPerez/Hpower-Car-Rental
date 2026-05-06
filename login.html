@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hpower Car Rental - Login</title>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js"></script>
+    <script src="js/supabase-client.js"></script>
+    <style>
+        :root {
+            --glass-bg: rgba(30, 41, 59, 0.7);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --glass-border-top: rgba(255, 255, 255, 0.2);
+            --accent: #4ecca3;
+            --text-primary: #ffffff;
+            --text-secondary: #94a3b8;
+            --input-bg: #0f172a;
+            --btn-primary-bg: #4ecca3;
+            --btn-primary-border: #4ecca3;
+            --btn-primary-text: #000000;
+        }
+
+        * { font-family: 'Bebas Neue', 'Segoe UI', sans-serif; box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+            background-color: #0f172a;
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-image: url('https://xtvopaehirznzeyuanwc.supabase.co/storage/v1/object/public/banner/banner_miami.png');
+            background-size: cover;
+            background-position: center;
+        }
+
+        .overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(15, 23, 42, 0.8);
+            z-index: 0;
+        }
+
+        .login-container {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            max-width: 420px;
+            padding: 2rem;
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-top: 1px solid var(--glass-border-top);
+            border-radius: 16px;
+            backdrop-filter: blur(24px);
+        }
+
+        h1 {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 32px;
+            color: var(--accent);
+            margin-bottom: 24px;
+            letter-spacing: 2px;
+        }
+
+        .error-msg {
+            background: rgba(226,75,74,0.15);
+            border: 1px solid rgba(226,75,74,0.4);
+            color: #E24B4A;
+            padding: 10px 16px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            font-size: 14px;
+            display: none;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        label {
+            display: block;
+            color: var(--text-secondary);
+            font-size: 13px;
+            margin-bottom: 6px;
+        }
+
+        input {
+            width: 100%;
+            padding: 10px 14px;
+            background: var(--input-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        input:focus {
+            border-color: var(--accent);
+        }
+
+        .btn-submit {
+            width: 100%;
+            padding: 12px;
+            background: var(--btn-primary-bg);
+            border: 1px solid var(--btn-primary-border);
+            color: var(--btn-primary-text);
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+            margin-top: 8px;
+            transition: opacity 0.3s;
+        }
+
+        .btn-submit:disabled {
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+
+        .footer-text {
+            color: var(--text-secondary);
+            font-size: 13px;
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .footer-text a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        /* Fallback para Lucide Icons cuando CDN falla */
+        .lucide-fallback i[data-lucide] { display: none; }
+        .lucide-fallback i[data-lucide="map-pin"]::before { content: "📍"; }
+        .lucide-fallback i[data-lucide="calendar"]::before { content: "📅"; }
+        .lucide-fallback i[data-lucide="clock"]::before { content: "🕐"; }
+        .lucide-fallback i[data-lucide="home"]::before { content: "🏠"; }
+        .lucide-fallback i[data-lucide="sun"]::before { content: "☀️"; }
+        .lucide-fallback i[data-lucide="building-2"]::before { content: "🏢"; }
+        .lucide-fallback i[data-lucide="car"]::before { content: "🚗"; }
+        .lucide-fallback i[data-lucide="users"]::before { content: "👥"; }
+        .lucide-fallback i[data-lucide="phone"]::before { content: "📞"; }
+        .lucide-fallback i[data-lucide="mail"]::before { content: "✉️"; }
+        .lucide-fallback i[data-lucide="heart"]::before { content: "❤️"; }
+        .lucide-fallback i[data-lucide="arrow-left"]::before { content: "←"; }
+        .lucide-fallback i[data-lucide="arrow-right"]::before { content: "→"; }
+        .lucide-fallback i[data-lucide="check-circle"]::before { content: "✅"; }
+        .lucide-fallback i[data-lucide="alert-triangle"]::before { content: "⚠️"; }
+        .lucide-fallback i[data-lucide="star"]::before { content: "⭐"; }
+        .lucide-fallback i[data-lucide="shield"]::before { content: "🛡️"; }
+    </style>
+</head>
+<body>
+
+    <div class="overlay"></div>
+
+    <div class="login-container">
+        <h1>ACCESO ADMIN</h1>
+        
+        <div id="error-alert" class="error-msg"></div>
+
+        <form id="login-form">
+            <div class="form-group">
+                <label>Correo Electrónico</label>
+                <input type="email" id="email" required placeholder="admin@hpower.com">
+            </div>
+
+            <div class="form-group" style="margin-bottom: 24px;">
+                <label>Contraseña</label>
+                <input type="password" id="password" required placeholder="••••••••">
+            </div>
+
+            <button type="submit" id="submit-btn" class="btn-submit">
+                INICIAR SESIÓN
+            </button>
+        </form>
+
+        <p class="footer-text">
+            ¿No tienes cuenta administrativa? <br>Solicítala a un supervisor.<br><br>
+            <a href="index.html">← Volver al Inicio</a>
+        </p>
+    </div>
+
+    <!-- Hpower Config for global constants like URL -->
+    <script src="js/supabase-client.js"></script>
+    <script>
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const btn = document.getElementById('submit-btn');
+            const errorDiv = document.getElementById('error-alert');
+            
+            btn.disabled = true;
+            btn.textContent = 'Cargando...';
+            errorDiv.style.display = 'none';
+            
+            try {
+                // Call the local backend instead of Supabase Auth
+                const response = await fetch('http://localhost:3000/api/v1/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const result = await response.json();
+
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || result.message || 'Credenciales incorrectas');
+                }
+
+                // Extract data following actual backend response structure
+                const { user, tokens } = result.data;
+                
+                // Store token and user
+                localStorage.setItem('access_token', tokens.access);
+                localStorage.setItem('user', JSON.stringify(user));
+                
+                if (user.role === 'ADMIN' || user.role === 'AGENT') {
+                    // Success: Redirect to admin panel
+                    window.location.href = 'admin-panel.html';
+                } else {
+                    // Not an admin: Redirect to home
+                    window.location.href = 'index.html';
+                }
+
+            } catch (err) {
+                console.error("Login fail:", err);
+                errorDiv.textContent = err.message || 'Inicio de sesión fallido. Credenciales incorrectas o servidor apagado.';
+                errorDiv.style.display = 'block';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'INICIAR SESIÓN';
+            }
+        });
+
+        // Initialize Lucide icons
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+
+        // ============================================
+        // FALLBACK PARA LUCIDE ICONS CDN
+        // ============================================
+        // Detectar si Lucide cargó correctamente
+        setTimeout(() => {
+            if (typeof lucide === 'undefined' || typeof lucide.createIcons !== 'function') {
+                console.warn('Lucide Icons CDN falló, aplicando fallback');
+                document.body.classList.add('lucide-fallback');
+            }
+        }, 2000);
+    </script>
+</body>
+</html>
