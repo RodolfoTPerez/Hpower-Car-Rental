@@ -10,7 +10,10 @@
                 <img src="Logo/logo_hpower.png" alt="Hpower Car Rental" style="height: 80px; margin-right: 10px;">
                 <span style="color: black; font-size: 1.3em; font-style: italic;">H<span style="color: #0047AB;">P</span>ower Car Rental</span>
             </a>
-            <nav class="nav-links">
+            <button class="mobile-nav-toggle" id="mobile-toggle">
+                <i data-lucide="menu"></i>
+            </button>
+            <nav class="nav-links" id="nav-menu">
                 <a href="index.html" data-i18n="nav.home">Inicio</a>
                 <a href="fleet.html" data-i18n="nav.fleet">Flota</a>
                 <a href="about.html" data-i18n="nav.about">Sobre Nosotros</a>
@@ -33,6 +36,12 @@
         if (placeholder) {
             placeholder.innerHTML = headerHTML;
             setActiveLink();
+            setupMobileToggle();
+            
+            // Re-initialize Lucide icons for the newly added header
+            if (window.lucide) {
+                window.lucide.createIcons();
+            }
         }
     }
 
@@ -52,9 +61,25 @@
         });
     }
 
-    // Language and Theme functions are handled globally by i18n-shared.js and the page scripts.
-    // The buttons in the header call these global functions directly.
-
+    // Setup mobile menu toggle
+    function setupMobileToggle() {
+        const toggle = document.getElementById('mobile-toggle');
+        const menu = document.getElementById('nav-menu');
+        
+        if (toggle && menu) {
+            toggle.addEventListener('click', () => {
+                menu.classList.toggle('active');
+                
+                // Update icon
+                const icon = toggle.querySelector('i');
+                if (icon) {
+                    const isOpening = menu.classList.contains('active');
+                    icon.setAttribute('data-lucide', isOpening ? 'x' : 'menu');
+                    if (window.lucide) window.lucide.createIcons();
+                }
+            });
+        }
+    }
 
     // Initialize when DOM is ready
     if (document.readyState === 'loading') {
