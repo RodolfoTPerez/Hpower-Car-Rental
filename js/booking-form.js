@@ -169,14 +169,29 @@ class BookingForm {
         // Validate return time on same day
         if (pickupDate.toDateString() === returnDate.toDateString() && pTime >= rTime) {
             event.preventDefault();
-            const message = currentLang === 'es' 
-                ? 'La hora de devolución debe ser posterior a la hora de recogida' 
+            const message = currentLang === 'es'
+                ? 'La hora de devolución debe ser posterior a la hora de recogida'
                 : 'Return time must be after pickup time';
             alert(message);
             return false;
         }
 
-        return true;
+        // Prevent default form submission and use manual navigation
+        event.preventDefault();
+        const form = event.target;
+        const formData = new FormData(form);
+        const params = new URLSearchParams();
+
+        for (const [key, value] of formData.entries()) {
+            if (value) params.append(key, value);
+        }
+
+        if (!params.has('target_step')) {
+            params.set('target_step', '2');
+        }
+
+        window.location.href = form.getAttribute('action') + '?' + params.toString();
+        return false;
     }
 
     destroy() {

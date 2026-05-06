@@ -185,7 +185,7 @@
             
             <!-- Paso 1: Formulario de reservas -->
             <div id="booking-form-container">
-                <form id="booking-form" method="get" action="booking.html">
+                <form id="booking-form" method="get" action="booking.html" onsubmit="return handleBookingSubmit(event)">
                     <div class="checkbox-row" style="justify-content: center; margin-bottom: 20px;">
                         <input type="checkbox" id="same_location" checked onchange="toggleReturnLocation()">
                         <label for="same_location" style="text-transform: none; font-weight: normal; cursor: pointer; margin: 0;">Devolver en la misma ubicación</label>
@@ -326,7 +326,27 @@
         </div>
     </footer>
 
+    <script>
         // Theme management is now handled by js/theme-shared.js
+
+        function handleBookingSubmit(event) {
+            event.preventDefault();
+            const form = event.target;
+            const formData = new FormData(form);
+            const params = new URLSearchParams();
+
+            for (const [key, value] of formData.entries()) {
+                if (value) params.append(key, value);
+            }
+
+            if (!params.has('target_step')) {
+                params.set('target_step', '2');
+            }
+
+            window.location.href = 'booking.html?' + params.toString();
+            return false;
+        }
+
         lucide.createIcons();
 
         function toggleReturnLocation() {
