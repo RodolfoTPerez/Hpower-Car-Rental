@@ -734,7 +734,12 @@
         // Tomorrow / projection
         setText(`${prefix}-next-open`,   d.reservas_next_day);
         setText(`${prefix}-next-return`, d.return_next_day);
-        const projAvail = (d.vehicles_available||0) + (d.return_next_day||0) - (d.reservas_next_day||0);
+        // Proyeccion corregida: los vehiculos OPEN aun no han salido pero saldran hoy,
+        // por lo que reducen la disponibilidad real antes de manana.
+        // Formula: (disponibles - open_pendientes) + returns_manana - rentas_manana
+        const openPendientes = (d.open||0);
+        const dispReal       = Math.max(0, (d.vehicles_available||0) + (d.returns - d.return_completed  ));
+        const projAvail      = dispReal + (d.return_next_day||0) - (d.reservas_next_day||0);
         setText(`${prefix}-proj-avail`,  projAvail);
         const proj = getProjection(projAvail);
         const badge = document.getElementById(`${prefix}-proj-badge`);
@@ -743,7 +748,10 @@
         // Footer financials
         setText(`${prefix}-rental-days`, Number(d.total_rental_days||0).toFixed(1));
         setText(`${prefix}-avg-rate`,    fmtMoney(d.avg_rate_day));
-        setText(`${prefix}-vehicles`,    d.vehicles_available);
+        const vehiclesLabel = d.vehicles_total > 0
+            ? `${d.vehicles_available} / ${d.vehicles_total}`
+            : `${d.vehicles_available}`;
+        setText(`${prefix}-vehicles`, vehiclesLabel);
     }
 
     // ============================================================
@@ -849,6 +857,7 @@
                 return_completed:   loc.return_completed   || 0,
                 returns:            loc.returns            || 0,
                 vehicles_available: loc.vehicles_available || 0,
+                vehicles_total:     loc.vehicles_total     || 0,
                 reservas_next_day:  loc.reservas_next_day  || 0,
                 return_next_day:    loc.return_next_day    || 0,
                 total_rental_days:  loc.total_rental_days  || 0,
